@@ -1,0 +1,33 @@
+
+/{
+	/* 根节点属性：定义硬件开发版名字、开发版芯片  */
+	compatible = "st,stm32mp135d-atk","st,stm32mp135";
+
+	/* 加入cpus节点  */
+	cpus{
+		/* 这不是定义cpu的地址信息，只是一个索引 */
+		#address-cells = <1>;
+
+		/* 无法定义地址长度信息，因为cpu不是一个存储设备 */
+		#length-cells = <0>;
+
+		/* 定义cpu0的信息：子结点标签为cpu0、属于cpu、地址长度为0 */
+		cpu0: cpu@0{
+			/* Linux 内核会根据 "arm,cortex-a7" 选择相应的 CPU 驱动和架构支持 */
+			compatible = "arm,cortex-a7";
+			
+			/* 标识设备类型，说明该节点为一个cpu */
+			device_type = "cpu";
+			
+			/* cpu无地址信息 */
+			reg = <0>;
+		}；
+	}；
+	
+	leds {		
+		/* 节点内容 */
+	 	compatible = "atk,led";
+    	gpio = <&gpioi 3 GPIO_ACTIVE_LOW>;
+    	status = "okey";
+	};
+};
