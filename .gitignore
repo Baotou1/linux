@@ -1,8 +1,10 @@
 #忽略所有内容
 *
 
-#忽略.gitignore文件
+#不忽略.gitignore文件
 !.gitignore
+#不忽略文本
+!*.txt
 
 #不忽略atk_mp135/目录
 !atk_mp135/
