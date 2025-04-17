@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "kernel.h": "c",
+        "semaphore.h": "c",
+        "uaccess.h": "c",
+        "map.h": "c",
+        "device.h": "c",
+        "of.h": "c",
+        "of_gpio.h": "c",
+        "timer.h": "c",
+        "gpio.h": "c",
+        "of_address.h": "c",
+        "io.h": "c",
+        "types.h": "c",
+        "string.h": "c"
+    }
+}
