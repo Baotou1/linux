@@ -10,7 +10,7 @@
 #define CMD_OPEN		  (_IO(0XEF, 0x01))	/* 打开定时器 */
 #define CMD_SETPERIOD	  (_IO(0XEF, 0x02))	/* 设置定时器周期命令 */
 #define CMD_CLOSE		  (_IO(0XEF, 0x03))	/* 关闭定时器 */
-int main(char argc ,char* argv[])
+int main(int argc ,char* argv[])
 {
     int fd ,ret;
     char* filename;

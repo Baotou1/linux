@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+/* 测试俩个无符号数相减  */
 int main(char argc ,char* argv[])
 {
 	unsigned int a,b;
