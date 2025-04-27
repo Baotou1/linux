@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "kernel.h": "c",
+        "unistd.h": "c",
+        "interrupt.h": "c",
+        "stat.h": "c",
+        "ioctl.h": "c",
+        "map.h": "c",
+        "irq.h": "c"
+    }
+}
