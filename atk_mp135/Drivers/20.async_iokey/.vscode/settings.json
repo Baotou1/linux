@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "fs.h": "c",
+        "struct_timespec.h": "c",
+        "signal.h": "c"
+    }
+}
