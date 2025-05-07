@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/baotou/linux/atk_mp135/ATK_MP135/alientek_linux/linux-5.15.24/arch/arm/include",
+                "/home/baotou/linux/atk_mp135/ATK_MP135/alientek_linux/linux-5.15.24/include",
+                "/home/baotou/linux/atk_mp135/ATK_MP135/alientek_linux/linux-5.15.24/arch/arm/include/generated",
+                "/home/baotou/linux/atk_mp135/Drivers/05_list_dev"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

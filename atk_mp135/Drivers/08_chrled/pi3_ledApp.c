@@ -6,7 +6,7 @@
 #include "string.h"
 #include "sys/stat.h"
 /***************************************************************
- * 文件名 : ledApp.c
+ * 文件名 : pi3_ledApp.c
  * 作者 : baotou
  * 版本 : V1.0
  * 描述 : led 驱动测试 APP

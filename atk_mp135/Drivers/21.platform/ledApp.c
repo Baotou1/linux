@@ -5,13 +5,6 @@
 #include "stdlib.h"
 #include "string.h"
 #include "sys/stat.h"
-/***************************************************************
- * 文件名 : newchrledApp.c
- * 作者 : baotou
- * 版本 : V1.0
- * 描述 : led 驱动测试 APP
- * 日志 : 初版 V1.0 2025/3/27
-***************************************************************/
 int main(char argc ,char* argv[])
 {
     int fd ,ret;
@@ -34,6 +27,7 @@ int main(char argc ,char* argv[])
     opt = atoi(argv[2]);
     if(opt == 0 || opt == 1)
     {
+        printf("opt = %d\n" ,opt);
         ret = write(fd ,&opt ,sizeof(opt));
         if(ret < 0)
         {
