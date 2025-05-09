@@ -63,6 +63,11 @@ static void __iomem *PGPIOI_IDR;
 static void __iomem *PGPIOI_ODR;
 static void __iomem *PGPIOI_BSRR;
 /*----------------------------------------------------------------------------------*/
+/**
+ * struct struct_name - led驱动结构体
+ * @member1: 
+ * @member2: 
+ */
 struct _led_dev{
     dev_t id;
     struct cdev cdv;
@@ -71,13 +76,12 @@ struct _led_dev{
 };
 struct _led_dev pi3led_dev;
 
-/*
-* @function_name : io_control
-* @description   : io口控制输出高低电平
-* @param - sta   : 0x00 - 低电平
-*                  0x01 - 高电平
-* @return        : 无
-*/
+/**
+ * @function_name - led contrl
+ * @param1
+ * @param2
+ * @return
+ */
 static void io_control(u8 sta)
 {   
    u32 val;
@@ -97,9 +101,23 @@ static void io_control(u8 sta)
        writel(val ,PGPIOI_BSRR);
    }
 }
+
+/**
+ * @function_name - 打开文件
+ * @param1
+ * @param2
+ * @return
+ */
 static int pi3led_open(struct inode *nd, struct file *filp){
     return 0;
 }
+
+/**
+ * @function_name - 写入文件
+ * @param1
+ * @param2
+ * @return
+ */
 static ssize_t pi3led_write(struct file *filp, const char __user *buf, size_t cnt, loff_t *offt){
     int retvalue = 0;
     u8 wdata;
@@ -123,6 +141,12 @@ static ssize_t pi3led_write(struct file *filp, const char __user *buf, size_t cn
     return 0;
 }
 
+/**
+ * @function_name - 读取文件
+ * @param1
+ * @param2
+ * @return
+ */
 static ssize_t pi3led_read(struct file *filp,char __user *buf, size_t cnt, loff_t *offt){
     int retvalue = 0;
     u8 io_sta;
@@ -145,12 +169,24 @@ static ssize_t pi3led_read(struct file *filp,char __user *buf, size_t cnt, loff_
     return 0;
 }
 
+/**
+ * struct struct_name - led文件操作结构体
+ * @member1: 
+ * @member2: 
+ */
 struct file_operations fops = {
     .open = pi3led_open,
     .write = pi3led_write,
     .read = pi3led_read
 };
+
 /*----------------------------------------------------------------------------------*/
+/**
+ * @function_name - 取消led寄存器虚拟映射
+ * @param1
+ * @param2
+ * @return
+ */
 static void pi3led_unmap(void)
 {
     iounmap(PMPU_AHPB4_BASE);
@@ -162,7 +198,13 @@ static void pi3led_unmap(void)
     iounmap(PGPIOI_ODR);
     iounmap(PGPIOI_BSRR);
 }
-/* 向内核注册驱动 */
+
+/**
+ * @function_name - 注册驱动到内核
+ * @param1
+ * @param2
+ * @return
+ */
 static int _abs_k_key(void){
     int ret;
     /* 获取设备id */
@@ -188,7 +230,13 @@ static int _abs_k_key(void){
         return -ERR_DEV_DEV;
     return 0;
 }
-/* 设备与驱动匹配成功时调用的回调函数 */
+
+/**
+ * @function_name - 注册platform驱动回调函数
+ * @param1
+ * @param2
+ * @return
+ */
 static int pi3led_probe(struct platform_device *dev){
     int i ,val ,ret;
     int resources_size[8];/* 保存每个寄存器长度 */
@@ -285,7 +333,13 @@ err_dev_id:
     pr_err("%s init error\r\n" , LEDDEV_NAME);
     return -ENAVAIL;
 }
-/* 设备移除或驱动卸载时调用的回调函数 */
+
+/**
+ * @function_name - 移除platform驱动回调函数
+ * @param1
+ * @param2
+ * @return
+ */
 static int pi3led_remove(struct platform_device *dev){
     device_destroy(pi3led_dev.cls ,pi3led_dev.id);
     class_destroy(pi3led_dev.cls);
@@ -296,9 +350,11 @@ static int pi3led_remove(struct platform_device *dev){
     return 0;
 }
 /*----------------------------------------------------------------------------------*/
-/*
-* platform驱动结构体
-*/
+/**
+ * struct struct_name - led的platform驱动结构体
+ * @member1: 
+ * @member2: 
+ */
 static struct platform_driver pi3led_drv = {
     .probe = pi3led_probe,
     .remove = pi3led_remove,
@@ -306,12 +362,25 @@ static struct platform_driver pi3led_drv = {
         .name = "stm32mp135_led_pi3",
     }
 };
+
 /*----------------------------------------------------------------------------------*/
+/**
+ * @function_name - 驱动入口
+ * @param1
+ * @param2
+ * @return
+ */
 static int __init pi3led_drv_init(void){
     /* 向Linux内核注册一个platform驱动 */
     return platform_driver_register(&pi3led_drv);
 }
 
+/**
+ * @function_name - 驱动出口
+ * @param1
+ * @param2
+ * @return
+ */
 static void __exit pi3led_drv_exit(void){
     /* Linux内核卸载一个platform驱动 */
     platform_driver_unregister(&pi3led_drv);

@@ -38,6 +38,12 @@
 #define ERR_DEV_CDEV      (0x0B) 
 #define ERR_DEV_CLS       (0x0C) 
 #define ERR_DEV_DEV       (0x0D) 
+/*--------------------------------------------------------------------*/
+/**
+ * struct struct_name - 按键驱动结构体
+ * @member1: 
+ * @member2: 
+ */
 typedef struct
 {
     struct device_node* nd; /* 设备树节点 */
@@ -56,12 +62,25 @@ typedef struct
     struct fasync_struct *async_queue; /* 异步通知队列 */
 }__dev;
 __dev _devkey;
+
 /*--------------------------------------------------------------------*/
-static int devkey_open(struct inode *nd, struct file *filp)
+/**
+ * @function_name - 打开文件
+ * @param1
+ * @param2
+ * @return
+ */static int devkey_open(struct inode *nd, struct file *filp)
 {
     filp->private_data = &_devkey;
     return 0;
 }
+
+/**
+ * @function_name - 读取文件
+ * @param1
+ * @param2
+ * @return
+ */
 static ssize_t devkey_read(struct file *filp, char __user *buf, size_t cnt, loff_t *lofft)
 {
     __dev* udev = filp->private_data;
@@ -88,6 +107,13 @@ static ssize_t devkey_read(struct file *filp, char __user *buf, size_t cnt, loff
     _devkey.last_sta = KEY_KEEP;
     return 1;
 }
+
+/**
+ * @function_name - 异步通知文件
+ * @param1
+ * @param2
+ * @return
+ */
 static int devkey_fasync(int fd, struct file *filp, int on)
 {
     __dev *udev = filp->private_data;
@@ -95,12 +121,23 @@ static int devkey_fasync(int fd, struct file *filp, int on)
     return fasync_helper(fd ,filp ,on ,&udev->async_queue);
 }
 
+/**
+ * @function_name - 释放文件
+ * @param1
+ * @param2
+ * @return
+ */
 static int devkey_release(struct inode *nd, struct file *filp)
 {
     /* 传入-1是一种无影响的写法，表示“当前我们只是要删除，不关心fd” */
     return devkey_fasync(-1 ,filp ,0);
 }
 
+/**
+ * struct struct_name - 按键操作结构体
+ * @member1: 
+ * @member2: 
+ */
 static struct file_operations fops= 
 {
     .owner = THIS_MODULE,
@@ -110,7 +147,12 @@ static struct file_operations fops=
     .fasync = devkey_fasync
 };
 /*--------------------------------------------------------------------*/
-/* 定时器回调函数 */
+/**
+ * @function_name - 软件定时器回调函数
+ * @param1
+ * @param2
+ * @return
+ */
 static void s_timfunc(struct timer_list *arg)
 {
     static int keysta_f;
@@ -160,7 +202,13 @@ static void s_timfunc(struct timer_list *arg)
         _devkey.last_sta = keysta_s;   
     }
 }
-/* 中断回调函数 */
+
+/**
+ * @function_name - pf14硬件中断回调函数
+ * @param1
+ * @param2
+ * @return
+ */
 static irqreturn_t key_pf14_interrupt(int irq, void *dev_id)
 {
     /* 设置定时器 */
@@ -168,7 +216,12 @@ static irqreturn_t key_pf14_interrupt(int irq, void *dev_id)
     return IRQ_HANDLED;
 }
 /*--------------------------------------------------------------------*/
-/* 设备树中按键初始化 */
+/**
+ * @function_name - 解析设备树中相关硬件节点
+ * @param1
+ * @param2
+ * @return
+ */
 static int _dt_init_key_pf14(void)
 {
     int ret;
@@ -205,7 +258,12 @@ static int _dt_init_key_pf14(void)
     return 0;
 }
 
-/* 向内核注册驱动 */
+/**
+ * @function_name - 向内核注册驱动
+ * @param1
+ * @param2
+ * @return
+ */
 static int _abs_k_key(void)
 {
     int ret;
@@ -230,6 +288,12 @@ static int _abs_k_key(void)
     return 0;
 }
 /*--------------------------------------------------------------------*/
+/**
+ * @function_name - 驱动入口
+ * @param1
+ * @param2
+ * @return
+ */
 static int __init _key_init(void)
 {
     int ret;
@@ -279,6 +343,12 @@ err_hd:
     return -ENAVAIL;
 }
 
+/**
+ * @function_name - 驱动出口
+ * @param1
+ * @param2
+ * @return
+ */
 static void __exit _key_exit(void)
 {
     device_destroy(_devkey._cls ,_devkey.id);

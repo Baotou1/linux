@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "fs.h": "c",
+        "map.h": "c",
+        "ioport.h": "c"
+    }
+}

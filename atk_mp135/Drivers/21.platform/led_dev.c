@@ -48,9 +48,11 @@
 #define GPIOI_BSRR              (GPIOI_BASE + (GPIOI_OFFEST_ADDR * 6))  /*GPIOI_BSRR地址，偏移量为0x18*/
 #endif
 /*----------------------------------------------------------------------------------*/
-/*
-* 设备资源结构体
-*/
+/**
+ * struct struct_name - led的platform设备资源（寄存器）结构体
+ * @member1: 
+ * @member2: 
+ */
 static struct resource pi3led_resource[] = {
     [0] = {
         .start = RCC_MP_S_AHB4ENSETR,
@@ -93,10 +95,13 @@ static struct resource pi3led_resource[] = {
         .flags = IORESOURCE_MEM
     }
 };
-/*
-* platform设备结构体
-* 用于描述设备，如果支持设备树尽量不用次结构体描述
-*/
+
+/**
+ * struct struct_name - led的platform设备结构体
+ * @member1: 
+ * @member2: 
+ * 用于描述设备，如果支持设备树尽量不用次结构体描述
+ */
 static void pi3led_release(struct device *dev);
 static struct platform_device pi3led_dev = {
     .name = "stm32mp135_led_pi3",
@@ -109,16 +114,33 @@ static struct platform_device pi3led_dev = {
 };
 
 /*----------------------------------------------------------------------------------*/
-/* @description		: 释放platform设备模块的时候此函数会执行	
- * @param - dev 	: 要释放的设备 
- * @return 			: 无
+/**
+ * @function_name - 释放platform设备回调函数	
+ * @param1
+ * @param2
+ * @return
  */
 static void pi3led_release(struct device *dev){
     pr_notice("platform-pi3led device released!\r\n");
 }
+
+/*----------------------------------------------------------------------------------*/
+/**
+ * @function_name - 驱动入口
+ * @param1
+ * @param2
+ * @return
+ */
 static int __init pi3led_dev_init(void){
     return platform_device_register(&pi3led_dev);
 }
+
+/**
+ * @function_name - 驱动出口
+ * @param1
+ * @param2
+ * @return
+ */
 static void __exit pi3led_dev_exit(void){
     platform_device_unregister(&pi3led_dev);
 }
