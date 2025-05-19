@@ -11,12 +11,12 @@
 
 #不忽略atk_mp135/Drivers/目录
 !atk_mp135/Drivers/
+!atk_mp135/applications/
 
 #不忽略Drivers下所有内容
 !atk_mp135/Drivers/**
 
 #不忽略atk_mp135/applications/目录
-!atk_mp135/applications/
 !atk_mp135/applications/file
 !atk_mp135/applications/file/**
 
