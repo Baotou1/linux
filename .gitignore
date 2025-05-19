@@ -16,9 +16,9 @@
 !atk_mp135/Drivers/**
 
 #不忽略atk_mp135/applications/目录
-#!atk_mp135/applications/
-#!atk_mp135/applications/**
-
+!atk_mp135/applications/
+!atk_mp135/applications/file
+!atk_mp135/applications/file/**
 
 #忽略Drivers目录下的编译生成文件,包含子文件
 atk_mp135/Drivers/**/*.ko
