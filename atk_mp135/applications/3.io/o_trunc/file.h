@@ -14,7 +14,6 @@
  * @author  baotou
  * @date    2025-05-16
  */
-#define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -23,11 +22,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <stdarg.h>
-
 
 #ifdef __cplusplus
-#include <unistd.h>
 extern "C" {
 #endif
 
@@ -35,24 +31,7 @@ extern "C" {
     printf("Error at %s:%d, errno = %d: %s\n", __FILE__, __LINE__, errno, strerror(errno))
 //#define PRINT_ERROR(msg)  perror(msg)
 
-//action 是你传给宏定义的一个字符串常量参数，代表当前执行的操作，比如 "read" 或 "write"
-#define PRINT_FILE_INFO(action, pf) \
-                                    printf( \
-                                        "%s " action ".\n" \
-                                        "  -> " action " bytes: %zd bytes\n" \
-                                        "  -> file size: %ld bytes\n" \
-                                        "  -> file offset: %ld bytes\n\n", \
-                                        (pf)->name, (pf)->ret, (pf)->fs, (pf)->ofs \
-                                    )
-
-
 #define CREAT_NEWFILE   O_CREAT | O_EXCL
-#define CP_FILE_DUP_1       0x01
-#define CP_FILE_DUP_2       0x02
-#define CP_FILE_FCNTL_3     0x03
-#define HAS_INVALID_F_SETFL_FLAGS(flag) \
-                                    ((flag) & (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC))
-
 #define FILE_ERROR      0x01
 #define FILE_EOK        0x00
 
@@ -75,12 +54,7 @@ _file_t* _file_init(char *name);
 int _file_open(_file_t *pf ,int fg ,mode_t md);
 int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len);
 int _file_write(_file_t *pfw ,void *data ,off_t ofs ,int whence ,size_t len);
-int _file_pread(_file_t *pfr ,size_t len ,off_t ofs);
-int _file_pwrite(_file_t *pfw ,void *data ,size_t len ,off_t ofs);
-int _file_cpfd(_file_t *pf ,_file_t *cppf ,int flag ,int nfd);
-int _file_status_fcntl(_file_t *pf ,int cmd, ...);
-int _file_print(_file_t *pfp ,off_t ofs ,size_t len);
-int _file_print_u16(_file_t *pfp ,off_t ofs ,size_t len);
+int _file_print(_file_t *pfp ,size_t len ,off_t ofs);
 #ifdef __cplusplus
 }
 #endif

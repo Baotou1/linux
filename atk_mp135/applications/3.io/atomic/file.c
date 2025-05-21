@@ -30,7 +30,7 @@
  * - 2025-05-16：初始版本，实现基础的文件封装读写功能。 baotou
  * - 2025-05-20：重构_file_read/write/print/open/init函数，便于维护和移植。 baotou
  * - 2025-05-20：修改_file_print函数，增加_file_print_u16函数。 baotou
- * - 2025-05-21：增加_file_cpfd/_pread/_write/_status_fcntl函数。 baotou
+ * - 2025-05-21：增加_file_dup/_pread/_write函数。 baotou
  */
 
 #include "file.h"
@@ -438,38 +438,34 @@ int _file_pwrite(_file_t *pfw ,void *data ,size_t len ,off_t ofs)
 }
 
 /**
- * @name  _file_cpfd
- * @brief 复制源文件结构体的文件描述符到目标结构体，支持 dup/dup2/fcntl 模式。
+ * @name _file_dup
+ * @brief 复制源文件结构体的文件描述符到目标文件结构体中，支持 dup 和 dup2 模式。
  *
- * 本函数用于将 `pf` 中的文件描述符复制到 `cppf` 中，封装了 dup、dup2 和 fcntl(F_DUPFD) 三种方式。
- * 支持用户指定是否由系统自动分配描述符，或手动指定目标描述符号。
+ * 本函数用于将 `pf` 中的文件描述符复制到 `cppf` 中，允许使用 dup 或 dup2 系统调用。
+ * 
+ * @param pf     原始文件 `_file_t` 结构体指针，需已打开。
+ * @param cppf   目标文件 `_file_t` 结构体指针，复制结果写入此结构体。
+ * @param flag   复制方式：
+ *               - CP_FILE_DUP_1：使用 dup()，由系统自动分配新描述符；
+ *               - CP_FILE_DUP_2：使用 dup2()，强制指定目标描述符 `nfd`。
+ * @param nfd    仅当 flag 为 CP_FILE_DUP_2 时生效，指定目标文件描述符。
  *
- * @param[in]  pf     原始文件 `_file_t` 结构体指针，需已打开。
- * @param[out] cppf   目标文件 `_file_t` 结构体指针，复制后的 fd 存入此结构体中。
- * @param[in]  flag   指定复制方式：
- *                    - CP_FILE_DUP_1：使用 dup()，系统分配新描述符；
- *                    - CP_FILE_DUP_2：使用 dup2()，目标描述符为 nfd；
- *                    - CP_FILE_FCNTL_3：使用 fcntl(F_DUPFD)，从 nfd 起分配可用描述符。
- * @param[in]  nfd    当 flag 为 CP_FILE_DUP_2 或 CP_FILE_FCNTL_3 时有效，表示目标 fd 或起始 fd。
- *
- * @retval FILE_EOK     成功（0）
- * @retval -FILE_ERROR  失败（如参数无效或系统调用出错）
+ * @retval  FILE_EOK     成功
+ * @retval -FILE_ERROR   失败（如参数无效或系统调用出错）
  *
  * @note
- * - 所有方式创建的新描述符与原描述符共享同一个文件描述符表项（open file description），
- *   包括文件状态标志，但每个描述符具有独立的文件描述符号。
- * - dup2() 可以覆盖已有的 nfd，无需显式关闭旧描述符。
- * - fcntl(F_DUPFD) 会从 nfd 起查找可用文件描述符。
+ * - `dup()` 和 `dup2()` 返回的新文件描述符与原始描述符共享同一个文件表项（如打开状态），
+ *   但各自拥有独立的文件偏移量。
+ * - 若 `cppf->fd` 中已有有效文件描述符，建议调用前先关闭，以避免资源泄露。
+ * - `dup2()` 可用于覆盖已有的 `nfd`，如果 `nfd == pf->fd`，不会执行任何操作。
  */
-int _file_cpfd(_file_t *pf ,_file_t *cppf ,int flag ,int nfd)
+int _file_dup(_file_t *pf ,_file_t *cppf ,int flag ,int nfd)
 {
-    if(pf == NULL || cppf == NULL || 
-                (flag != CP_FILE_DUP_1 && flag != CP_FILE_DUP_2 && flag != CP_FILE_FCNTL_3))
+    if(pf == NULL || cppf == NULL || (flag != CP_FILE_DUP_1 && flag != CP_FILE_DUP_2))
         return -FILE_ERROR;
     
-    if(flag == CP_FILE_DUP_1){
+    if(flag == CP_FILE_DUP_1)
         cppf->fd = dup(pf->fd);
-    }
     else if(flag == CP_FILE_DUP_2){
         if(fcntl(nfd ,F_GETFD) == -1){
             cppf->fd = dup2(pf->fd ,nfd);
@@ -478,9 +474,6 @@ int _file_cpfd(_file_t *pf ,_file_t *cppf ,int flag ,int nfd)
             return -FILE_ERROR;
         }
     }
-    else if(flag == CP_FILE_FCNTL_3){
-        cppf->fd = fcntl(pf->fd ,F_DUPFD ,nfd);
-    }
 
     if(cppf->fd ==-1){
         PRINT_ERROR();
@@ -488,67 +481,7 @@ int _file_cpfd(_file_t *pf ,_file_t *cppf ,int flag ,int nfd)
     }
     return FILE_EOK;
 }
-
-/**
- * @name  _file_status_fcntl
- * @brief 获取或设置文件状态标志（仅支持 F_GETFL / F_SETFL）。
- *
- * 本函数封装 fcntl 系统调用，仅支持获取和设置文件状态标志。
- * 当 cmd 为 F_SETFL 时，调用者需额外提供 int 类型的 flag 参数，
- * 不能包含 open() 专用标志，如 O_CREAT、O_EXCL 等。
- *
- * @param[in,out] pf    文件结构体指针，需已打开
- * @param[in]     cmd   F_GETFL 或 F_SETFL
- * @param[in]     ...   若 cmd 为 F_SETFL，需传入 int flag，表示待设置标志
- *
- * @retval  FILE_EOK     成功
- * @retval -FILE_ERROR   失败（错误信息已打印）
- *
- * @note 成功时会更新 pf->fg 成员。
- */
-int _file_status_fcntl(_file_t *pf ,int cmd, ...){
-    if(pf == NULL || (cmd != F_GETFL && cmd != F_SETFL))
-        return -FILE_ERROR;
-
-    va_list args;
-    int nfg = 0;
-
-    if(cmd == F_GETFL){
-        nfg = fcntl(pf->fd ,F_GETFL);
-    }
-    else if(cmd == F_SETFL){
-        va_start(args, cmd);
-        int flag = va_arg(args, int);
-        va_end(args);
-
-        if(HAS_INVALID_F_SETFL_FLAGS(flag) == 0){
-
-            int ofg = fcntl(pf->fd ,F_GETFL);
-            if(ofg == -1){
-                PRINT_ERROR();
-                return -FILE_ERROR; 
-            }
-
-            if(fcntl(pf->fd ,F_SETFL ,ofg | flag) == -1){
-                nfg = -1;
-            }else{
-                nfg = ofg | flag;
-            }
-        }else{
-            printf("invalid flag: cannot use open() flags (e.g., O_CREAT) with fcntl(F_SETFL).\n");
-            return -FILE_ERROR;     
-        }
-    }
-
-    if(nfg == -1){
-        PRINT_ERROR();
-        return -FILE_ERROR;  
-    }
-
-    pf->fg = nfg;
-    return FILE_EOK;
-}
-
+ 
 /**
  * @name _file_print
  * @brief 从指定偏移位置开始读取并打印文件内容（以文本形式输出）。

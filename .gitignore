@@ -9,20 +9,20 @@
 #不忽略atk_mp135/目录
 !atk_mp135/
 
-#不忽略atk_mp135/Drivers/目录
-!atk_mp135/Drivers/
+#不忽略atk_mp135/drivers/目录
+!atk_mp135/drivers/
 !atk_mp135/applications/
 
 #不忽略Drivers下所有内容
-!atk_mp135/Drivers/**
+!atk_mp135/drivers/**
 
 #不忽略atk_mp135/applications/目录
 !atk_mp135/applications/**
 
 #忽略Drivers目录下的编译生成文件,包含子文件
-atk_mp135/Drivers/**/*.ko
-atk_mp135/Drivers/**/*.o
-atk_mp135/Drivers/**/*.mod
-atk_mp135/Drivers/**/*.order
-atk_mp135/Drivers/**/*.symvers
+atk_mp135/drivers/**/*.ko
+atk_mp135/drivers/**/*.o
+atk_mp135/drivers/**/*.mod
+atk_mp135/drivers/**/*.order
+atk_mp135/drivers/**/*.symvers
 

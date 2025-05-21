@@ -24,18 +24,17 @@
  * @author baotou
  * @date 2025-05-16
  *
- * @version 1.0.3 - 25/5/21
+ * @version 1.0.2 - 25/5/20
  *
  * @par 更新记录（Change Log）
  * - 2025-05-16：初始版本，实现基础的文件封装读写功能。 baotou
  * - 2025-05-20：重构_file_read/write/print/open/init函数，便于维护和移植。 baotou
  * - 2025-05-20：修改_file_print函数，增加_file_print_u16函数。 baotou
- * - 2025-05-21：增加_file_cpfd/_pread/_write/_status_fcntl函数。 baotou
  */
 
 #include "file.h"
 /**
- * @name _file_get_offset
+ * @function _file_get_offset
  * @brief 获取文件当前偏移量。
  *
  * 此函数使用 lseek 函数（配合 SEEK_CUR）获取文件描述符当前的偏移位置，
@@ -54,9 +53,9 @@ static int _file_get_offset(_file_t *pf)
     }
     return 0;
 }
- 
+
 /**
- * @name _file_set_offset
+ * @function _file_set_offset
  * @brief 设置文件偏移量。
  *
  * 此函数使用 lseek 设置文件描述符的读写位置（偏移量），偏移方式由 whence 参数指定。
@@ -79,7 +78,7 @@ static int _file_set_offset(_file_t *pf ,off_t offset ,int whence)
 }
 
 /**
- * @name _file_get_size
+ * @function _file_get_size
  * @brief 获取文件大小并更新 _file_t 结构体中的 fs 字段。
  *
  * 使用 fstat 函数获取文件描述符对应文件的元信息，并从中提取文件大小（以字节为单位），
@@ -102,9 +101,9 @@ int _file_get_size(_file_t *pf)
     pf->fs = st.st_size;
     return 0;
 }
- 
+
 /**
- * @name _file_data_init
+ * @function _file_data_init
  * @brief 初始化（或重新初始化）_file_t 结构中的数据缓冲区。
  *
  * 该函数首先释放原有的 data 缓冲区（若已存在），然后根据指定的大小分配一块新的内存区域，
@@ -130,9 +129,9 @@ int _file_data_init(_file_t *pf ,size_t size)
     }
     return 0;
 }
- 
+
 /**
- * @name _file_close
+ * @function _file_close
  * @brief 关闭文件并释放关联的内存资源。
  *
  * 此函数用于关闭文件描述符，并释放 _file_t 结构体中分配的内存资源，包括文件名和数据缓冲区。
@@ -159,9 +158,9 @@ void _file_close(_file_t *pf)
     
     free(pf);    
 }
- 
+
 /**
- * @name _file_init
+ * @function _file_init
  * @brief 初始化一个 _file_t 结构体并设置初始状态。
  *
  * 此函数为指定文件名分配并初始化一个 _file_t 结构体，包含：
@@ -194,9 +193,9 @@ _file_t* _file_init(char *name)
 
     return pf;
 }
- 
+
 /**
- * @name _file_open
+ * @function _file_open
  * @brief 打开或创建文件，并初始化 _file_t 结构体中的相关字段。
  *
  * 根据传入的文件打开标志 `fg` 和权限模式 `md` 打开或创建文件，更新 `_file_t` 结构体中的文件描述符、文件大小、偏移量等信息。
@@ -247,7 +246,7 @@ int _file_open(_file_t *pf ,int fg ,mode_t md)
 }
 
 /**
- * @name _file_read
+ * @function _file_read
  * @brief 从指定偏移位置开始，读取数据到 _file_t 的 data 缓冲区中。
  *
  * 本函数会根据传入的偏移量和 whence 参数，先调用 lseek 设置读取起始位置，
@@ -265,8 +264,8 @@ int _file_open(_file_t *pf ,int fg ,mode_t md)
 
 int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len)
 {
-    if(pfr == NULL || pfr->data == NULL || len <= 0 ||
-            (whence != SEEK_CUR && whence != SEEK_SET && whence != SEEK_END))
+    if(pfr == NULL || pfr->data == NULL || 
+             (whence != SEEK_CUR && whence != SEEK_SET && whence != SEEK_END))
         return -1;
 
     if(_file_set_offset(pfr ,ofs ,whence) == -1)
@@ -290,12 +289,19 @@ int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len)
     if(_file_get_offset(pfr) == -1)
         return -FILE_ERROR;
 
-    PRINT_FILE_INFO("read" ,pfr);
+    printf(
+        "%s read.\n"
+        "  -> read bytes: %zd bytes\n"
+        "  -> file size: %ld bytes\n"
+        "  -> file offset: %ld bytes\n\n",
+        pfr->name, pfr->ret, pfr->fs, pfr->ofs
+    );
+    
     return pfr->ret;
 }
- 
+
 /**
- * @name  _file_write
+ * @function _file_write
  * @brief 向指定文件写入一段数据。
  *
  * 本函数会首先根据传入的 offset 和 whence 参数设置文件偏移，
@@ -311,7 +317,7 @@ int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len)
  * @param[in]     whence  偏移设置方式（SEEK_SET、SEEK_CUR、SEEK_END）。
  * @param[in]     len     要写入的数据字节数，必须 > 0。
  *
- * @return 成功返回实际写入的字节数，失败返回 -FILE_ERROR。
+ * @return 成功返回实际写入的字节数，失败返回 -1。
  */
 int _file_write(_file_t *pfw ,void *data ,off_t ofs ,int whence ,size_t len)
 {
@@ -335,222 +341,19 @@ int _file_write(_file_t *pfw ,void *data ,off_t ofs ,int whence ,size_t len)
     if(_file_get_offset(pfw) == -1)
         return -FILE_ERROR;
 
-    PRINT_FILE_INFO("write" ,pfw);
+    printf(
+        "%s write.\n"
+        "  -> write bytes: %zd bytes\n"
+        "  -> file size: %ld bytes\n"
+        "  -> file offset: %ld bytes\n\n",
+        pfw->name, pfw->ret, pfw->fs, pfw->ofs
+    );
+
     return pfw->ret;
 }
 
 /**
- * @name  _file_pread
- * @brief 读取文件内容（基于偏移，非移动式读取）。
- *
- * 从指定文件pfr偏移ofs开始读取len字节数据到pfr->data中，。
- * 使用pread()实现，读取不会影响文件当前偏移。若len超过文件结尾，则自动裁剪读取长度为：文件大小 - ofs`。
- *
- * - 若输入参数非法、写入失败或更新元信息失败，则返回 -FILE_ERROR。
- * - 写入失败不会自动关闭文件，资源释放建议由调用者负责。
- *
- * @param[in,out] pfw    指向目标文件结构体 _file_t 的指针。
- * @param[in]     data   指向要写入的数据缓冲区。
- * @param[in]     len    要写入的数据字节数，必须 > 0。
- * @param[in]     ofs    写入时设置的文件偏移。
- *
- * @return 成功返回实际写入的字节数，失败返回 -FILE_ERROR。
- * 
- * @note: 与read()不同，pread()不会修改文件描述符对应的当前偏移量,
- *        因此本函数调用后，文件偏移量（file offset）保持不变。
- */
-int _file_pread(_file_t *pfr ,size_t len ,off_t ofs)
-{
-    if(pfr == NULL || pfr->data == NULL || len <= 0)
-        return -1;
-
-#define __PRINT_FILEOFS
-#ifdef __PRINT_FILEOFS
-    if(_file_get_offset(pfr) == -1)
-        return -FILE_ERROR;
-    printf("get %s file offset: %ld bytes\n" ,pfr->name ,pfr->ofs);    
-#endif
-
-    if(_file_get_size(pfr) == -1)
-        return -FILE_ERROR;
-
-    len = (len > (pfr->fs - ofs))?  (pfr->fs - ofs): len;
-
-    if(_file_data_init(pfr ,len) == -1)
-        return -FILE_ERROR;
-
-    pfr->ret = pread(pfr->fd ,pfr->data ,len ,ofs);    
-    if(pfr->ret < 0){
-        PRINT_ERROR();
-        return -FILE_ERROR;
-    }
-
-    PRINT_FILE_INFO("read" ,pfr);
-    return pfr->ret;
-}
-
-/**
- * @name  _file_pwrite
- * @brief 向文件指定偏移写入数据（基于偏移，非移动式写入）。
- *
- * 使用 pwrite() 向文件 pfw 指定的偏移 ofs 处写入 len 字节数据，
- * 数据来源于指针 data。写入操作不会修改文件的当前偏移。
- * 写入完成后会更新文件大小（fs）和当前偏移（ofs）信息。
- *
- * - 若输入参数非法、写入失败或更新元信息失败，则返回 -FILE_ERROR。
- * - 写入失败不会自动关闭文件，资源释放建议由调用者负责。
- *
- * @param[in,out] pfw    指向目标文件结构体 _file_t 的指针。
- * @param[in]     data   指向要写入的数据缓冲区。
- * @param[in]     len    要写入的数据字节数，必须 > 0。
- * @param[in]     ofs    写入时设置的文件偏移。
- *
- * @return 成功返回实际写入的字节数，失败返回 -FILE_ERROR。
- * 
- * @note 与 write() 不同，pwrite() 不会修改文件描述符对应的当前偏移量，
- *       因此本函数调用后，文件偏移量（file offset）保持不变。
- */
-int _file_pwrite(_file_t *pfw ,void *data ,size_t len ,off_t ofs)
-{
-    if(pfw == NULL || data == NULL || len <= 0)
-        return -FILE_ERROR;
-
-#ifdef __PRINT_FILEOFS
-    if(_file_get_offset(pfw) == -1)
-        return -FILE_ERROR;
-    printf("get %s file offset: %ld bytes\n" ,pfw->name ,pfw->ofs);
-#endif
-
-    pfw->ret = pwrite(pfw->fd ,data ,len ,ofs);
-    if(pfw->ret == -1){
-        PRINT_ERROR();
-        return -FILE_ERROR;
-    }
-    
-    if(_file_get_size(pfw) == -1)
-        return -FILE_ERROR;
-
-    if(_file_get_offset(pfw) == -1)
-        return -FILE_ERROR;
-
-    PRINT_FILE_INFO("write" ,pfw);
-    return pfw->ret;
-}
-
-/**
- * @name  _file_cpfd
- * @brief 复制源文件结构体的文件描述符到目标结构体，支持 dup/dup2/fcntl 模式。
- *
- * 本函数用于将 `pf` 中的文件描述符复制到 `cppf` 中，封装了 dup、dup2 和 fcntl(F_DUPFD) 三种方式。
- * 支持用户指定是否由系统自动分配描述符，或手动指定目标描述符号。
- *
- * @param[in]  pf     原始文件 `_file_t` 结构体指针，需已打开。
- * @param[out] cppf   目标文件 `_file_t` 结构体指针，复制后的 fd 存入此结构体中。
- * @param[in]  flag   指定复制方式：
- *                    - CP_FILE_DUP_1：使用 dup()，系统分配新描述符；
- *                    - CP_FILE_DUP_2：使用 dup2()，目标描述符为 nfd；
- *                    - CP_FILE_FCNTL_3：使用 fcntl(F_DUPFD)，从 nfd 起分配可用描述符。
- * @param[in]  nfd    当 flag 为 CP_FILE_DUP_2 或 CP_FILE_FCNTL_3 时有效，表示目标 fd 或起始 fd。
- *
- * @retval FILE_EOK     成功（0）
- * @retval -FILE_ERROR  失败（如参数无效或系统调用出错）
- *
- * @note
- * - 所有方式创建的新描述符与原描述符共享同一个文件描述符表项（open file description），
- *   包括文件状态标志，但每个描述符具有独立的文件描述符号。
- * - dup2() 可以覆盖已有的 nfd，无需显式关闭旧描述符。
- * - fcntl(F_DUPFD) 会从 nfd 起查找可用文件描述符。
- */
-int _file_cpfd(_file_t *pf ,_file_t *cppf ,int flag ,int nfd)
-{
-    if(pf == NULL || cppf == NULL || 
-                (flag != CP_FILE_DUP_1 && flag != CP_FILE_DUP_2 && flag != CP_FILE_FCNTL_3))
-        return -FILE_ERROR;
-    
-    if(flag == CP_FILE_DUP_1){
-        cppf->fd = dup(pf->fd);
-    }
-    else if(flag == CP_FILE_DUP_2){
-        if(fcntl(nfd ,F_GETFD) == -1){
-            cppf->fd = dup2(pf->fd ,nfd);
-        }else{
-            printf("the new file descriptor is already in use\n");
-            return -FILE_ERROR;
-        }
-    }
-    else if(flag == CP_FILE_FCNTL_3){
-        cppf->fd = fcntl(pf->fd ,F_DUPFD ,nfd);
-    }
-
-    if(cppf->fd ==-1){
-        PRINT_ERROR();
-        return -FILE_ERROR;
-    }
-    return FILE_EOK;
-}
-
-/**
- * @name  _file_status_fcntl
- * @brief 获取或设置文件状态标志（仅支持 F_GETFL / F_SETFL）。
- *
- * 本函数封装 fcntl 系统调用，仅支持获取和设置文件状态标志。
- * 当 cmd 为 F_SETFL 时，调用者需额外提供 int 类型的 flag 参数，
- * 不能包含 open() 专用标志，如 O_CREAT、O_EXCL 等。
- *
- * @param[in,out] pf    文件结构体指针，需已打开
- * @param[in]     cmd   F_GETFL 或 F_SETFL
- * @param[in]     ...   若 cmd 为 F_SETFL，需传入 int flag，表示待设置标志
- *
- * @retval  FILE_EOK     成功
- * @retval -FILE_ERROR   失败（错误信息已打印）
- *
- * @note 成功时会更新 pf->fg 成员。
- */
-int _file_status_fcntl(_file_t *pf ,int cmd, ...){
-    if(pf == NULL || (cmd != F_GETFL && cmd != F_SETFL))
-        return -FILE_ERROR;
-
-    va_list args;
-    int nfg = 0;
-
-    if(cmd == F_GETFL){
-        nfg = fcntl(pf->fd ,F_GETFL);
-    }
-    else if(cmd == F_SETFL){
-        va_start(args, cmd);
-        int flag = va_arg(args, int);
-        va_end(args);
-
-        if(HAS_INVALID_F_SETFL_FLAGS(flag) == 0){
-
-            int ofg = fcntl(pf->fd ,F_GETFL);
-            if(ofg == -1){
-                PRINT_ERROR();
-                return -FILE_ERROR; 
-            }
-
-            if(fcntl(pf->fd ,F_SETFL ,ofg | flag) == -1){
-                nfg = -1;
-            }else{
-                nfg = ofg | flag;
-            }
-        }else{
-            printf("invalid flag: cannot use open() flags (e.g., O_CREAT) with fcntl(F_SETFL).\n");
-            return -FILE_ERROR;     
-        }
-    }
-
-    if(nfg == -1){
-        PRINT_ERROR();
-        return -FILE_ERROR;  
-    }
-
-    pf->fg = nfg;
-    return FILE_EOK;
-}
-
-/**
- * @name _file_print
+ * @function _file_print
  * @brief 从指定偏移位置开始读取并打印文件内容（以文本形式输出）。
  *
  * 该函数会先保存当前文件偏移位置，然后从指定偏移 `ofs` 开始，最多读取 `len` 字节内容。
@@ -561,7 +364,7 @@ int _file_status_fcntl(_file_t *pf ,int cmd, ...){
  * @param ofs   从该偏移位置开始读取（相对于文件开头，SEEK_SET）。
  * @param len   要读取并打印的最大字节数。
  *
- * @return 成功返回 FILE_EOK;，失败返回 -FILE_ERROR。
+ * @return 成功返回 0，失败返回 -FILE_ERROR。
  *
  * @note
  * - 如果请求打印的长度超过文件末尾，则会自动调整为剩余可读字节数；
@@ -602,12 +405,19 @@ int _file_print(_file_t *pfp ,off_t ofs ,size_t len)
     if(_file_set_offset(pfp ,ofs_k ,SEEK_SET) == -1)
         return -FILE_ERROR;
     
-    PRINT_FILE_INFO("print" ,pfp);
-    return FILE_EOK;
+    printf(
+        "%s print.\n"
+        "  -> print bytes: %zd bytes\n"
+        "  -> file size: %ld bytes\n"
+        "  -> file offset: %ld bytes\n\n",
+        pfp->name, pfp->ret, pfp->fs, pfp->ofs
+    );
+    
+    return 0;
 }
 
 /**
- * @name _file_print_u16
+ * @function _file_print_u16
  * @brief 以十六进制格式打印文件中指定位置的数据（按字节输出）。
  *
  * 该函数从指定偏移位置开始读取文件内容，并以十六进制形式（0xXX）逐字节打印，适用于调试二进制文件内容。
@@ -617,7 +427,7 @@ int _file_print(_file_t *pfp ,off_t ofs ,size_t len)
  * @param ofs  打印起始偏移位置（从 ofs 字节处开始读取）。
  * @param len  要读取并打印的最大字节数（若超出文件剩余大小则截断）。
  *
- * @return FILE_EOK 成功；-FILE_ERROR 失败（包括偏移设置失败、读取失败等）。
+ * @return 0 成功；-FILE_ERROR 失败（包括偏移设置失败、读取失败等）。
  *
  * @note
  * - 本函数不改变文件内容，仅用于打印查看。
@@ -658,7 +468,13 @@ int _file_print_u16(_file_t *pfp ,off_t ofs ,size_t len)
     if(_file_set_offset(pfp ,ofs_k ,SEEK_SET) == -1)
         return -FILE_ERROR;
     
-    PRINT_FILE_INFO("print" ,pfp);
-    return FILE_EOK;
+    printf(
+        "%s print.\n"
+        "  -> print bytes: %zd bytes\n"
+        "  -> file size: %ld bytes\n"
+        "  -> file offset: %ld bytes\n\n",
+        pfp->name, pfp->ret, pfp->fs, pfp->ofs
+    );
+    
+    return 0;
 }
- 

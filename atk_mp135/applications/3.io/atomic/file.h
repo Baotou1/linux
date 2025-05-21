@@ -23,7 +23,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <stdarg.h>
 
 
 #ifdef __cplusplus
@@ -47,11 +46,8 @@ extern "C" {
 
 
 #define CREAT_NEWFILE   O_CREAT | O_EXCL
-#define CP_FILE_DUP_1       0x01
-#define CP_FILE_DUP_2       0x02
-#define CP_FILE_FCNTL_3     0x03
-#define HAS_INVALID_F_SETFL_FLAGS(flag) \
-                                    ((flag) & (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_EXCL | O_NOCTTY | O_TRUNC))
+#define CP_FILE_DUP_1   0x01
+#define CP_FILE_DUP_2   0x02
 
 #define FILE_ERROR      0x01
 #define FILE_EOK        0x00
@@ -77,8 +73,7 @@ int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len);
 int _file_write(_file_t *pfw ,void *data ,off_t ofs ,int whence ,size_t len);
 int _file_pread(_file_t *pfr ,size_t len ,off_t ofs);
 int _file_pwrite(_file_t *pfw ,void *data ,size_t len ,off_t ofs);
-int _file_cpfd(_file_t *pf ,_file_t *cppf ,int flag ,int nfd);
-int _file_status_fcntl(_file_t *pf ,int cmd, ...);
+int _file_dup(_file_t *pf ,_file_t *cppf ,int flag ,int nfd);
 int _file_print(_file_t *pfp ,off_t ofs ,size_t len);
 int _file_print_u16(_file_t *pfp ,off_t ofs ,size_t len);
 #ifdef __cplusplus

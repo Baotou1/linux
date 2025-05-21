@@ -114,6 +114,7 @@ _file_t* _file_init(char *name ,size_t size)
     _pfile->data = (char *)malloc(sizeof(char) * _pfile->size);
     if(_pfile->data == NULL){
         free(_pfile);
+        perror("file errno");
         return NULL;
     }
     memset(_pfile->data, 0, _pfile->size);
@@ -146,7 +147,7 @@ int _file_open(_file_t *_pfile ,int flag ,mode_t mode)
         _pfile->fd = open(_pfile->name ,_pfile->flag);
         if(_pfile->fd == -1){
             printf("the %s file does not exist or open failed.\n" ,_pfile->name);
-            PRINT_ERROR();
+            PRINT_ERROR("open file error");
             goto err;
         }
         printf("open %s file successed.\n" ,_pfile->name);
@@ -156,7 +157,7 @@ int _file_open(_file_t *_pfile ,int flag ,mode_t mode)
         _pfile->fd = open(_pfile->name ,_pfile->flag ,_pfile->mode);
         if(_pfile->fd == -1){
             printf("create %s file failed.\n" ,_pfile->name);
-            PRINT_ERROR();
+            PRINT_ERROR("create file error");
             goto err;
         }
         printf("create %s file successsed.\n" ,_pfile->name);
@@ -230,7 +231,7 @@ int _file_write(_file_t *_pfile_1 ,_file_t *_pfile_2 ,off_t offset ,int whence)
         _pfile_2->ret = write(_pfile_2->fd ,_pfile_2->data ,_pfile_2->size);
         if(_pfile_2->ret == -1){
             printf("write error: failed to write from %s, file closed\n", _pfile_2->name);
-            PRINT_ERROR();
+            PRINT_ERROR("write file error");
             _file_close(_pfile_2);//指针已经被释放，不要访问任何成员
             return -1;
         }
@@ -241,7 +242,7 @@ int _file_write(_file_t *_pfile_1 ,_file_t *_pfile_2 ,off_t offset ,int whence)
         _pfile_2->ret = write(_pfile_2->fd ,_pfile_1->data ,len);
         if(_pfile_2->ret == -1){
             printf("write error: failed to write from %s, file closed\n", _pfile_2->name);
-            PRINT_ERROR();
+            PRINT_ERROR("write file error");
             _file_close(_pfile_2);//指针已经被释放，不要访问任何成员
             return -1;
         }
@@ -299,7 +300,7 @@ int _file_read(_file_t *_pfile ,off_t offset ,int whence)
     ssize_t fisrt_rbytes = read(_pfile->fd ,_pfile->data ,_pfile->size);    
     if(fisrt_rbytes < 0){
         printf("read error: failed to read from %s, file closed.\n", _pfile->name);
-        PRINT_ERROR();
+        PRINT_ERROR("read file error");
         _file_close(_pfile);
         return -1;
     }
@@ -330,7 +331,7 @@ int _file_read(_file_t *_pfile ,off_t offset ,int whence)
         ssize_t second_rbytes = read(_pfile->fd ,_pfile->data + fisrt_rbytes ,rem_read_bytes);
         if(second_rbytes < 0){
             printf("read error: failed to read from %s, file closed.\n", _pfile->name);
-            PRINT_ERROR();
+            PRINT_ERROR("read file error");
             _file_close(_pfile);
             return -1;
         }
