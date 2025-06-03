@@ -33,8 +33,6 @@
  * - 2025-05-21：增加_file_cpfd/_pread/_write/_status_fcntl函数。 baotou
  * - 2025-05-22: 增加_file_truncate函数。 baotou
  * - 2025-05-26: 修改_file_data_init和_file_get_size函数，增加_sfile_init/open/close/write等函数。 baotou
- * - 2025-06-01: 修改_file_get_size函数为_file_get_properties。 baotou
- * - 2025-06-02: 增加_file_get_type/get_rwx/get_time。 baotou
  */
 
 #include "file.h"
@@ -84,145 +82,35 @@ static int _file_set_offset(_file_t *pf ,off_t offset ,int whence)
 }
 
 /**
- * @name  _file_get_type
- * @brief 根据文件的 st_mode 字段解析其类型。
+ * @name _file_get_size
+ * @brief 获取指定文件描述符对应文件的大小（字节数）。
  *
- * 该函数通过检查 `struct stat` 中的 `st_mode` 字段，判断文件类型，
- * 并将对应的类型宏（如 `__S_IFREG`、`__S_IFDIR` 等）写入传出参数 `type`。
+ * 该函数使用 fstat 获取文件描述符 fd 指向文件的元数据，
+ * 并返回文件大小（st_size）。
  *
- * @param[in]  st    指向有效的 struct stat 结构体，用于获取文件信息。
- * @param[out] type  指向 int 类型的输出变量，用于接收文件类型标志。
+ * @param[in] fd 已打开文件的文件描述符，必须有效。
  *
- * @note 若 st 为空，则函数直接返回。未识别的类型将被设置为 0。
+ * @return 返回文件大小（类型为 off_t），
+ *         失败时返回 -1 并打印错误信息。
+ *
+ * @note 调用者需要保证 fd 是有效且已打开的文件描述符。
  */
-static void _file_get_type(struct stat *st ,int *type)
-{
-    if(st == NULL)
-        return;
+ off_t _file_get_size(int fd)
+ {
+     struct stat st;
+     if(fstat(fd ,&st) == -1){
+         perror("get file size error.");
+         return -1;
+     }
+     return st.st_size;
+ }
 
-    /* 管道文件 */
-    if(S_ISFIFO(st->st_mode) == true){
-        *type = __S_IFIFO;
-    }
-    /* 字符设备设备文件 */
-    else if(S_ISCHR(st->st_mode) == true){
-        *type = __S_IFCHR;
-    }
-    /* 目录文件 */
-    else if(S_ISDIR(st->st_mode) == true){
-        *type = __S_IFDIR;
-    }
-    /* 块设备文件 */
-    else if(S_ISBLK(st->st_mode) == true){
-        *type = __S_IFBLK;
-    }
-    /* 普通文件 */
-    else if(S_ISREG(st->st_mode) == true){
-        *type = __S_IFREG;
-    }
-    /* 链接文件 */
-    else if(S_ISLNK(st->st_mode) == true){
-        *type = __S_IFLNK;
-    }
-    /* 套接字文件 */
-    else if(S_ISSOCK(st->st_mode) == true){
-        *type = __S_IFSOCK;
-    }
-    else{
-        *type = 0;
-    }
-} 
-
-/**
- * @name  _file_get_rwx
- * @brief 提取文件权限（读/写/执行）位。
- *
- * 该函数从 `struct stat` 中提取最低 9 位权限标志（即 rwxrwxrwx），
- * 并将结果写入输出参数 `rwx`。
- *
- * @param[in]  st   指向有效的 struct stat 结构体。
- * @param[out] rwx  指向 int 类型的输出变量，用于接收权限值（八进制表示）。
- *
- * @note 若 st 为 NULL，函数将直接返回。
- */
-static void _file_get_rwx(struct stat *st ,int *rwx)
-{
-    if(st == NULL)
-        return;
-    
-    *rwx = st->st_mode & 0777;
-}
-static void _file_check_rwx(int *rwx ,int flag)
-{
-
-}
-
-/**
- * @name  _file_get_time
- * @brief 将 time_t 时间格式转换为格式化的字符串时间表示。
- *
- * 该函数使用 `localtime_r` 将给定的 `time_t` 时间转换为本地时间的 `struct tm`，
- * 并通过 `strftime` 将时间格式化为“YYYY-MM-DD HH:MM:SS”格式字符串，
- * 写入到调用者提供的缓冲区 `__buf` 中。
- *
- * @param[in]  __timer  指向有效的 time_t 类型时间变量。
- * @param[out] __buf    用于存放格式化时间字符串的字符缓冲区，建议大小至少为 100 字节。
- *
- * @note 函数不做缓冲区长度检查，调用者需保证 `__buf` 有足够空间。
- *       如果 `__timer` 为空指针，函数行为未定义，应避免传入 NULL。
- */
-static void _file_get_time(const time_t *__timer ,char *__buf)
-{
-    struct tm _tm;
-
-    localtime_r(__timer ,&_tm);
-    strftime(__buf, 100,\
-                        "%Y-%m-%d %H:%M:%S", &_tm);
-}
-
-/**
- * @name  _file_get_properties
- * @brief 获取并更新文件属性信息，包括类型和权限。
- *
- * 该函数调用 `fstat()` 获取文件描述符对应文件的元数据，并更新 `_file_t`
- * 结构体中的 `st`（文件状态）、`type`（文件类型）和 `rwx`（权限信息）字段。
- *
- * @param[in,out] pf  指向 `_file_t` 结构体的有效指针，内部必须包含已打开的文件描述符。
- *
- * @retval 0          成功获取并更新文件属性信息。
- * @retval -1         获取失败（如 pf 为 NULL 或 fstat 出错），并打印错误信息。
- *
- * @note 成功调用后，pf->st、pf->type、pf->rwx 字段将反映最新文件状态。
- */
-int _file_get_properties(_file_t *pf)
-{
-    if(pf == NULL)
-        return -1;
-#if 0
-    if(fstat(pf->fd ,&pf->st) == -1){
-        perror("get file size error.");
-        return -1;
-    }
-#else
-    if(stat(pf->name ,&pf->st) == -1){
-        perror("get file size error.");
-        return -1;
-    }
-#endif
-    _file_get_type(&pf->st ,&pf->type);
-    _file_get_rwx(&pf->st ,&pf->rwx);
-    _file_get_time(&pf->st.st_atim.tv_sec ,pf->atim);
-    _file_get_time(&pf->st.st_mtim.tv_sec ,pf->mtim);
-    _file_get_time(&pf->st.st_ctim.tv_sec ,pf->ctim);
-    return 0;
-}
- 
 /**
  * @name  _file_get_info
  * @brief 获取并更新文件结构体中的文件大小与当前偏移信息。
  *
- * 此函数内部依次调用 `_file_get_properties()` 和 `_file_get_offset()`，
- * 用于更新 `_file_t` 结构体中的 `st` 和 `ofs` 字段。
+ * 此函数内部依次调用 `_file_get_size()` 和 `_file_get_offset()`，
+ * 用于更新 `_file_t` 结构体中的 `size` 和 `ofs` 字段。
  *
  * @param[in,out] pf   文件结构体指针，不能为空，且内部包含有效的文件描述符。
  *
@@ -231,9 +119,10 @@ int _file_get_properties(_file_t *pf)
  *
  * @note 调用本函数可确保 `pf->size` 与 `pf->ofs` 字段为最新状态。
  */
-static int _file_get_info(_file_t *pf)
+int _file_get_info(_file_t *pf)
 {
-    if(_file_get_properties(pf) == -1)
+    pf->fs = _file_get_size(pf->fd);
+    if(pf->fs == -1)
         return -1;
 
     if(_file_get_offset(pf) == -1)
@@ -246,7 +135,6 @@ static int _file_get_info(_file_t *pf)
 }
 
 /**
- * @name  _file_data_init
  * @brief 初始化或重置数据缓冲区。
  *
  * 该函数用于初始化或重新初始化指针所指向的数据缓冲区。若指针当前非空，
@@ -262,7 +150,7 @@ static int _file_get_info(_file_t *pf)
  *        - 分配失败时，会打印错误信息，但不会终止程序。
  *        - 调用前应确保 pptr 指向有效地址。
  */
-static int _file_data_init(void **pptr ,size_t size)
+int _file_data_init(void **pptr ,size_t size)
 {
     if(pptr == NULL || size == 0)
         return -1;
@@ -280,7 +168,7 @@ static int _file_data_init(void **pptr ,size_t size)
 
     return 0;
 }
-
+ 
 /**
  * @name _file_close
  * @brief 关闭文件并释放关联的内存资源。
@@ -334,12 +222,6 @@ _file_t* _file_init(char *name)
         return pf;
 
     pf->fd = -1;
-    pf->data = NULL;
-    pf->fg = 0;
-    pf->ofs = 0;
-    pf->ret = 0;
-    pf->type = 0;
-    pf->rwx = 0;
     //pf->name 分配一块新的内存，并复制 name 字符串的内容进去，避免直接使用外部传入的指针，保证文件名的独立性和安全性
     pf->name = strdup(name);
     if(pf->name == NULL){
@@ -383,8 +265,9 @@ int _file_open(_file_t *pf ,int fg ,mode_t md)
         return -FILE_ERROR;
     }
 
-    if(_file_get_properties(pf) == -1)
-        return -1;
+    pf->fs = _file_get_size(pf->fd);
+    if(pf->fs == -1)
+        return -FILE_ERROR;
 
     if(_file_get_offset(pf) == -1)
         return -FILE_ERROR;
@@ -423,10 +306,11 @@ int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len)
         return -FILE_ERROR;
     printf("set %s file read offset: %ld bytes\n" ,pfr->name ,pfr->ofs);
     
-    if(_file_get_properties(pfr) == -1)
-        return -1;
+    pfr->fs = _file_get_size(pfr->fd);
+    if(pfr->fs == -1)
+        return -FILE_ERROR;
     
-    len = (len > (pfr->st.st_size - pfr->ofs))?  (pfr->st.st_size - pfr->ofs): len;
+    len = (len > (pfr->fs - pfr->ofs))?  (pfr->fs - pfr->ofs): len;
 
     if(_file_data_init(&pfr->data ,len) == -1)
         return -FILE_ERROR;
@@ -518,10 +402,11 @@ int _file_pread(_file_t *pfr ,size_t len ,off_t ofs)
     printf("get %s file offset: %ld bytes\n" ,pfr->name ,pfr->ofs);    
 #endif
 
-    if(_file_get_properties(pfr) == -1)
-        return -1;
+    pfr->fs = _file_get_size(pfr->fd);
+    if(pfr->fs == -1)
+        return -FILE_ERROR;
 
-    len = (len > (pfr->st.st_size - ofs))?  (pfr->st.st_size - ofs): len;
+    len = (len > (pfr->fs - ofs))?  (pfr->fs - ofs): len;
 
     if(_file_data_init(&pfr->data ,len) == -1)
         return -FILE_ERROR;
@@ -721,10 +606,11 @@ int _file_truncate(_file_t *pf ,off_t len ,off_t ofs ,int cmd ,...)
         (cmd != FILE_F_TRUNCATE && cmd != FILE_TRUNCATE))
         return -FILE_ERROR;
 
-    if(_file_get_properties(pf) == -1)
-        return -1;
+    pf->fs = _file_get_size(pf->fd);
+    if(pf->fs == -1)
+        return -FILE_ERROR;
     
-    size_t fs = pf->st.st_size;
+    size_t fs = pf->fs;
     int ret = 0;
     va_list args;
 
@@ -790,10 +676,11 @@ int _file_print(_file_t *pfp ,off_t ofs ,size_t len)
     if(_file_set_offset(pfp ,ofs ,SEEK_SET) == -1)
         return -FILE_ERROR;
     
-    if(_file_get_properties(pfp) == -1)
-        return -1;
+    pfp->fs = _file_get_size(pfp->fd);
+    if(pfp->fs == -1)
+        return -FILE_ERROR;
     
-    len = (len > (pfp->st.st_size - pfp->ofs))?  (pfp->st.st_size - pfp->ofs): len;
+    len = (len > (pfp->fs - pfp->ofs))?  (pfp->fs - pfp->ofs): len;
 
     if(_file_data_init(&pfp->data ,len) == -1)
         return -FILE_ERROR;
@@ -846,10 +733,11 @@ int _file_print_u16(_file_t *pfp ,off_t ofs ,size_t len)
     if(_file_set_offset(pfp ,ofs ,SEEK_SET) == -1)
         return -FILE_ERROR;
     
-    if(_file_get_properties(pfp) == -1)
-        return -1;
+    pfp->fs = _file_get_size(pfp->fd);
+    if(pfp->fs == -1)
+        return -FILE_ERROR;
     
-    len = (len > (pfp->st.st_size - pfp->ofs))?  (pfp->st.st_size - pfp->ofs): len;
+    len = (len > (pfp->fs - pfp->ofs))?  (pfp->fs - pfp->ofs): len;
 
     if(_file_data_init(&pfp->data ,len) == -1)
         return -FILE_ERROR;
@@ -875,113 +763,6 @@ int _file_print_u16(_file_t *pfp ,off_t ofs ,size_t len)
 
 /******************************************************************************************************************/
 /**
- * @name _sfile_get_ofs
- * @brief 获取与给定文件流关联的当前文件偏移量。
- *
- * 该函数使用 `ftell` 获取文件流的当前偏移量。如果文件流无效或获取偏移量失败，
- * 则返回错误码 `-1`。此函数用于获取文件当前的读写位置。
- *
- * @param[in] pf 指向 `FILE` 类型的文件流指针，不能为空。
- *
- * @return 成功时返回当前的文件偏移量，失败时返回 `-1`。
- */
-static long _sfile_get_ofs(FILE *pf)
-{
-    if(pf == NULL)
-        return -1;
-
-    long ofs = ftell(pf);
-    if(ofs == EOF)
-        PRINT_ERROR();
-
-    return ofs;
-}
-
-/**
- * @name _sfile_set_ofs
- * @brief 设置文件流的偏移量。
- *
- * 该函数使用 `fseek` 设置文件流的偏移量。通过设置新的偏移位置，它可以修改文件流的
- * 当前读写位置。该函数支持三种模式：`SEEK_SET`、`SEEK_CUR` 和 `SEEK_END`。如果文件流无效，
- * 或者设置偏移量失败，将返回错误码 `-1`。
- *
- * @param[in] pf     指向 `FILE` 类型的文件流指针，不能为空。
- * @param[in] ofs    偏移量，表示新的文件位置。
- * @param[in] whence 偏移量的基准位置，可以是 `SEEK_SET`、`SEEK_CUR` 或 `SEEK_END`。
- *
- * @return 设置成功时返回新的文件偏移量，失败时返回 `-1`。
- */
-static long _sfile_set_ofs(FILE *pf ,long ofs, int whence)
-{
-    if(pf == NULL)
-        return -1;
-
-    int ret = fseek(pf ,ofs ,whence);
-    if(ret == EOF){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return _sfile_get_ofs(pf);
-}
-
-/**
- * @name _sfile_get_sz
- * @brief 获取文件流的文件大小。
- *
- * 该函数通过设置文件流的偏移量到文件末尾（`SEEK_END`），获取文件的大小。文件流的当前偏移
- * 量会在获取文件大小前后被保存并恢复。如果文件流无效或发生错误，返回 `-1`。
- *
- * @param[in] pf 指向 `FILE` 类型的文件流指针，不能为空。
- *
- * @return 成功时返回文件的大小，失败时返回 `-1`。
- */
-static off_t _sfile_get_sz(FILE *pf)
-{
-    if(pf == NULL)
-        return -1;
-
-    long cur_ofs = _sfile_get_ofs(pf);
-    if(cur_ofs == -1)
-        return -1;
-
-    long ofs = cur_ofs;
-    cur_ofs = _sfile_set_ofs(pf ,0 ,SEEK_END);
-    if(cur_ofs == -1)
-        return -1;
-
-    if(_sfile_set_ofs(pf ,ofs ,SEEK_SET) == -1)
-        return -1;
-
-    return cur_ofs;
-}
-
-/**
- * @name _sfile_fflush
- * @brief 刷新 _sfile_t 结构体中关联文件流的缓冲区。
- * 
- * 该函数会调用标准库 `fflush` 函数，确保刷新文件流的缓冲区，
- * 将缓冲区中的数据写入目标文件。它用于确保文件中的数据不会停留在内存缓冲区中。
- * 如果文件流无效或刷新失败，将返回错误码。
- * 
- * @param[in] psf 指向 `_sfile_t` 文件结构体的指针，不能为空。
- * 
- * @return 刷新成功返回 `FILE_EOK`，失败返回 `-FILE_ERROR`。
- */
-int _sfile_fflush(_sfile_t *psf)
-{
-    if(psf == NULL || psf->pf == NULL)
-        return -FILE_ERROR;
-
-    if(fflush(psf->pf) == EOF){
-        PRINT_ERROR();
-        return -FILE_ERROR;
-    }
-
-    return FILE_EOK;
-}
-
-/**
  * @name _sfile_finit
  * @brief 初始化一个 _sfile_t 结构体并加载基本信息。
  *
@@ -995,9 +776,9 @@ int _sfile_fflush(_sfile_t *psf)
  *
  * @return 成功时返回初始化后的 _sfile_t 指针，失败时返回 NULL。
  */
-_sfile_t* _sfile_finit(const char *path ,const char *name ,const char *md)
+_sfile_t* _sfile_finit(const char *path ,const char *name)
 {
-    if(path == NULL || name == NULL || !CHECK_FOPEN_MODE(md))
+    if(path == NULL || name == NULL)
         return NULL;
 
     //判断是否为文件而不是目录
@@ -1014,10 +795,8 @@ _sfile_t* _sfile_finit(const char *path ,const char *name ,const char *md)
     psf->pf = NULL;
     psf->name = strdup(name);
     psf->path = strdup(path);
-    psf->md = strdup(md);
-    psf->ptr = NULL;
-    psf->ofs = 0;
-    if(psf->name == NULL || psf->path == NULL){
+    psf->ptr = (void*)calloc(1 ,sizeof(char));
+    if(psf->name == NULL || psf->path == NULL || psf->ptr == NULL){
         FREE_SFILE(psf);
         psf = NULL;
         return NULL;
@@ -1044,30 +823,31 @@ _sfile_t* _sfile_finit(const char *path ,const char *name ,const char *md)
  *
  * @return 成功返回 `FILE_EOK`（0），失败返回 `-FILE_ERROR`（-1）。
  */
-int _sfile_fopen(_sfile_t *psf)
+int _sfile_fopen(_sfile_t *psf ,const char *md)
 {
-    if(psf == NULL)
+    if(psf == NULL || !CHECK_FOPEN_MODE(md))
         return -FILE_ERROR;
 
-    psf->pf = fopen(psf->path ,psf->md);    
+    printf("%s file open..." ,psf->name);
+
+    psf->pf = fopen(psf->path ,md);    
     if(psf->pf == NULL){
         PRINT_ERROR();
         return -FILE_ERROR;
     }
 
-    psf->fd = psf->pf->_fileno;
-    psf->fsz = _sfile_get_sz(psf->pf);
+    psf->fsz = _file_get_size(psf->pf->_fileno);
     if(psf->fsz == (size_t)-1){
         PRINT_ERROR();
         return -FILE_ERROR;
     }
 
-    PRINT_SFILE_INFO("open" ,psf);
+    printf(" ok\n");
     return FILE_EOK;
 }
 
 /**
- * @name _sfile_fcloses
+ * @name _sfile_fclose
  * @brief 关闭 _sfile_t 结构体中打开的文件并释放相关资源。
  *
  * 该函数会检查传入指针的有效性，若文件指针非空则关闭文件，
@@ -1115,138 +895,73 @@ void _sfile_fclose(_sfile_t *psf)
  *
  * @return 写入成功返回 FILE_EOK，失败返回 -FILE_ERROR。
  */
-int _sfile_fwrite(_sfile_t *psfw ,const void *ptr ,size_t sz, size_t nmemb ,long ofs ,int whence)
+int _sfile_fwrite(_sfile_t *psfw ,const void *ptr ,size_t sz, size_t nmemb)
 {
-    if(psfw == NULL  || psfw->pf == NULL || ptr == NULL || sz == 0 || nmemb == 0
-                        || (whence != SEEK_CUR && whence != SEEK_SET && whence != SEEK_END))
+    if(psfw == NULL  || psfw->pf == NULL || ptr == NULL || sz == 0 || nmemb == 0)
         return -FILE_ERROR;
 
-    psfw->ofs = _sfile_set_ofs(psfw->pf ,ofs ,whence);
-    if(psfw->ofs == -1)
+    if(_file_data_init(&psfw->ptr ,sz * nmemb) == -1)
         return -FILE_ERROR;
-    
+
+    printf("%s file write..." ,psfw->name);
     psfw->ret =  fwrite(ptr ,sz ,nmemb ,psfw->pf);
     if(psfw->ret < nmemb){
+        printf(" error\n");
         PRINT_ERROR();
         return -FILE_ERROR;
     }
+    printf(" ok\n");
 
-    psfw->fsz = _sfile_get_sz(psfw->pf);
+    psfw->fsz = _file_get_size(psfw->pf->_fileno);
     if(psfw->fsz == (size_t)-1){
         PRINT_ERROR();
         return -FILE_ERROR;
     }
 
-    psfw->ofs = _sfile_get_ofs(psfw->pf);
-    if(psfw->ofs == -1)
-        return -FILE_ERROR;
+    return FILE_EOK;
+}
 
-    PRINT_SFILE_INFO("write" ,psfw);
+
+int _sfile_fread(_sfile_t *psfr ,size_t sz, size_t nmemb)
+{
+    if(psfr == NULL  || psfr->pf == NULL || sz == 0 || nmemb == 0)
+        return -FILE_ERROR;
+    
+    if(psfr->ptr != NULL){
+        free(psfr->ptr);
+        psfr->ptr = (void*)calloc((sz * nmemb) ,sizeof(char));
+        if(psfr->ptr == NULL){
+            free(psfr->ptr);
+            printf("%s fread calloc errpr...\n" ,psfr->name);
+        }
+    }
+    fread(psfr->ptr ,sz ,nmemb ,psfr->pf);
+
     return FILE_EOK;
 }
 
 /**
- * @name _sfile_fread
- * @brief 从 `_sfile_t` 结构体中关联的文件读取数据。
- *
- * 该函数首先验证输入参数的有效性，然后初始化数据缓冲区。接着，通过 `fseek` 函数
- * 设置文件的偏移量，并调用 `fread` 从文件中读取数据。如果读取的数据小于预期，
- * 会检查是否由于文件结束（EOF）或读取错误导致。若有错误，则通过 `clearerr` 清除
- * 错误标志。读取成功后，更新文件的当前偏移量，并打印文件信息。
- *
- * @param[in,out] psfr 指向 `_sfile_t` 文件结构体的指针，不能为空。
- * @param[in]     sz   每个元素的字节大小，不能为 0。
- * @param[in]     nmemb 元素的个数，不能为 0。
- * @param[in]     ofs  设置文件的偏移量，基于 `whence` 参数。
- * @param[in]     whence 偏移量的起始位置，支持 `SEEK_CUR`, `SEEK_SET`, `SEEK_END`。
- *
- * @return 读取成功返回 `FILE_EOK`，失败返回 `-FILE_ERROR`。
+ * @name _sfile_fflush
+ * @brief 刷新 _sfile_t 结构体中关联文件流的缓冲区。
+ * 
+ * 该函数会调用标准库 `fflush` 函数，确保刷新文件流的缓冲区，
+ * 将缓冲区中的数据写入目标文件。它用于确保文件中的数据不会停留在内存缓冲区中。
+ * 如果文件流无效或刷新失败，将返回错误码。
+ * 
+ * @param[in] psf 指向 `_sfile_t` 文件结构体的指针，不能为空。
+ * 
+ * @return 刷新成功返回 `FILE_EOK`，失败返回 `-FILE_ERROR`。
  */
-int _sfile_fread(_sfile_t *psfr ,size_t sz, size_t nmemb ,long ofs ,int whence)
+int _sfile_fflush(_sfile_t *psf)
 {
-    if(psfr == NULL  || psfr->pf == NULL || sz == 0 || nmemb == 0
-                    || (whence != SEEK_CUR && whence != SEEK_SET && whence != SEEK_END))
+    if(psf == NULL || psf->pf == NULL)
         return -FILE_ERROR;
-    
-    if(_file_data_init(&psfr->ptr ,sz * nmemb) == -1)
+
+    if(fflush(psf->pf) == EOF){
+        PRINT_ERROR();
         return -FILE_ERROR;
-  
-    psfr->ofs = _sfile_set_ofs(psfr->pf ,ofs ,whence);
-    if(psfr->ofs == -1)
-        return -FILE_ERROR;   
-
-    psfr->ret = fread(psfr->ptr ,sz ,nmemb ,psfr->pf);
-    if(psfr->ret < nmemb)
-    {
-        if(feof(psfr->pf))
-            printf("End-of-file flag is set, reached the end of the file.\n");
-
-        if(ferror(psfr->pf))
-            printf("read file error.\n");
-
-        clearerr(psfr->pf);
     }
-    
-    psfr->ofs = _sfile_get_ofs(psfr->pf);
-    if(psfr->ofs == -1)
-        return -FILE_ERROR;
 
-    PRINT_SFILE_INFO("read" ,psfr);
     return FILE_EOK;
 }
 
-/**
- * @name _sfile_print
- * @brief 从 `_sfile_t` 结构体中关联的文件读取数据并打印到标准输出。
- *
- * 该函数会先保存当前文件偏移量，然后通过 `fseek` 设置文件的偏移位置。接着，
- * 使用 `fread` 从文件中读取数据到缓冲区，并打印读取的数据。读取数据后，会
- * 恢复文件的原始偏移量，并打印文件信息。如果读取过程中遇到文件结束标志（EOF）
- * 或错误，会分别进行处理并打印相关提示。
- *
- * @param[in,out] psfp 指向 `_sfile_t` 文件结构体的指针，不能为空。
- * @param[in]     sz   每个元素的字节大小，不能为 0。
- * @param[in]     nmemb 元素的个数，不能为 0。
- * @param[in]     ofs  设置文件的偏移量，基于 `whence` 参数。
- * @param[in]     whence 偏移量的起始位置，支持 `SEEK_CUR`, `SEEK_SET`, `SEEK_END`。
- *
- * @return 打印成功返回 `FILE_EOK`，失败返回 `-FILE_ERROR`。
- */
-int _sfile_print(_sfile_t *psfp ,size_t sz, size_t nmemb ,long ofs ,int whence)
-{
-    if(psfp == NULL || psfp->pf == NULL)
-        return -FILE_ERROR;
-    
-    off_t ofs_k = psfp->ofs;
-    psfp->ofs = _sfile_set_ofs(psfp->pf ,ofs ,whence);
-    if(psfp->ofs == -1)
-        return -FILE_ERROR; 
-
-    if(_file_data_init(&psfp->ptr ,sz * nmemb) == -1)
-        return -FILE_ERROR; 
-        
-    psfp->ret = fread(psfp->ptr ,sz ,nmemb ,psfp->pf);
-    if(psfp->ret < nmemb)
-    {
-        if(feof(psfp->pf))
-            printf("End-of-file flag is set, reached the end of the file.\n");
-
-        if(ferror(psfp->pf))
-            printf("read file error.\n");
-
-        clearerr(psfp->pf);
-    }
-
-    printf("\n*----------------------------------------------------*\n");
-    for (int i = 0; i < psfp->ret; ++i) {
-        putchar((char)((unsigned char *)psfp->ptr)[i]);
-    }
-    printf("\n*----------------------------------------------------*\n");
-
-    psfp->ofs = _sfile_set_ofs(psfp->pf ,ofs_k ,SEEK_SET);
-    if(psfp->ofs == -1)
-        return -FILE_ERROR;
-    
-    PRINT_SFILE_INFO("print" ,psfp);
-    return FILE_EOK;
-}

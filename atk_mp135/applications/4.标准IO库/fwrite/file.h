@@ -14,7 +14,6 @@
  * @author  baotou
  * @date    2025-05-16
  */
-#define _XOPEN_SOURCE 700
 #define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -25,8 +24,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdarg.h>
-#include "time.h"
-#include <stdbool.h>
+
 
 #ifdef __cplusplus
 #include <unistd.h>
@@ -37,45 +35,16 @@ extern "C" {
 #define PRINT_ERROR() \
     printf("Error at %s:%d, errno = %d: %s\n", __FILE__, __LINE__, errno, strerror(errno))
 
-/**
- * @brief 将文件类型（mode）转换为可读字符串。
- *
- * @param mode 文件的 st_mode 字段或文件类型宏（如 S_IFREG）
- * @return 对应的英文类型字符串（如 "Regular File"）
- */
-static const char* file_type_str(int mode) {
-    switch (mode & S_IFMT) {
-        case S_IFREG:  return "Regular File";
-        case S_IFDIR:  return "Directory";
-        case S_IFLNK:  return "Symbolic Link";
-        case S_IFIFO:  return "FIFO";
-        case S_IFCHR:  return "Character Device";
-        case S_IFBLK:  return "Block Device";
-        case S_IFSOCK: return "Socket";
-        default:       return "Unknown";
-    }
-}
 /* 文件信息打印宏 */
 /* action 是你传给宏定义的一个字符串常量参数，代表当前执行的操作，比如 "read" 或 "write" */
 #define PRINT_FILE_INFO(action, pf) \
                                     printf( \
-                                        "file info:\n"\
                                         "" action " %s .\n" \
                                         "  -> " action " bytes: %zd bytes\n" \
-                                        "  -> size: %ld bytes\n" \
-                                        "  -> inode: %ld \n" \
-                                        "  -> type: %s \n" \
-                                        "  -> rwx: 0%o \n" \
-                                        "  -> flag: 0x%02x\n" \
-                                        "  -> now offset: %ld bytes\n"\
-                                        "  -> atim: %s\n" \
-                                        "  -> mtim: %s\n" \
-                                        "  -> ctim: %s\n" \
-                                        "\n"\
-                                        ,\
-                                        (pf)->name, (pf)->ret, (pf)->st.st_size, (pf)->st.st_ino, file_type_str((pf)->type)\
-                                        ,(pf)->rwx ,(pf)->fg ,(pf)->ofs\
-                                        ,(pf)->atim ,(pf)->mtim ,(pf)->ctim\
+                                        "  -> file size: %ld bytes\n" \
+                                        "  -> file offset: %ld bytes\n"\
+                                        "  -> file flag: 0x%02x\n\n" ,\
+                                        (pf)->name, (pf)->ret, (pf)->fs, (pf)->ofs, (pf)->fg \
                                     )
 
 
@@ -96,20 +65,16 @@ static const char* file_type_str(int mode) {
 typedef struct {
     void *data;      /**< 数据缓冲区 */
     ssize_t ret;     /**< 读取的字节数 */
+    off_t fs;        /**< 文件大小 */
     off_t ofs;       /**< 当前文件偏移量 */
     int fg;          /**< 文件打开标志 */
     int fd;          /**< 文件描述符 */
     char *name;      /**< 文件名 */
-    struct stat st;  /**< 文件属性 */
-    int type;        /**< 文件类型 */
-    int rwx;         /**< 文件权限 */
-    char atim[100];
-    char mtim[100];
-    char ctim[100];
 } _file_t;
 
 /* 相关函数声明 */
-int _file_get_properties(_file_t *pf);
+off_t _file_get_size(int fd);
+int _file_data_init(void **ptr ,size_t size);
 void _file_close(_file_t *pf);
 _file_t* _file_init(char *name);
 int _file_open(_file_t *pf ,int fg ,mode_t md);
@@ -145,41 +110,24 @@ int _file_print_u16(_file_t *pfp ,off_t ofs ,size_t len);
         }\
     }while(0)
          
-/* 文件信息打印宏 */
-#define PRINT_SFILE_INFO(action, psf) \
-                                        printf( \
-                                            "file info:\n" \
-                                            "" action " %s ok:\n" \
-                                            "  -> file fd: %d\n" \
-                                            "  -> file offset: %ld bytes\n" \
-                                            "  -> file mode: %s \n" \
-                                            "  -> file size: %ld bytes\n" \
-                                            "  -> " action " bytes: %zd bytes\n\n", \
-                                            (psf)->name, (psf)->fd, (psf)->ofs, (psf)->md, (psf)->fsz, (psf)->ret \
-                                         )
-
 /* _sfile_t结构体，基于标准IO的封装 */
 typedef struct
 {
     FILE *pf;
-    int fd;
     char *path;
     char *name;
-    char *md;
     void *ptr;
-    off_t fsz;
+    size_t fsz;
     size_t ret;
-    long ofs;
 }_sfile_t;
 
 /* 相关函数声明 */
-int _sfile_fflush(_sfile_t *psf);
-_sfile_t* _sfile_finit(const char *path ,const char *name ,const char *md);
-int _sfile_fopen(_sfile_t *psf);
+_sfile_t* _sfile_finit(const char *path ,const char *name);
+int _sfile_fopen(_sfile_t *psf ,const char *md);
 void _sfile_fclose(_sfile_t *psf);
-int _sfile_fwrite(_sfile_t *psfw ,const void *ptr ,size_t sz, size_t nmemb ,long ofs ,int whence);
-int _sfile_fread(_sfile_t *psfr ,size_t sz, size_t nmemb ,long ofs ,int whence);
-int _sfile_print(_sfile_t *psfp ,size_t sz, size_t nmemb ,long ofs ,int whence);
+int _sfile_fwrite(_sfile_t *psfw ,const void *ptr ,size_t sz, size_t nmemb);
+int _sfile_fread(_sfile_t *psfr ,size_t sz, size_t nmemb);
+int _sfile_fflush(_sfile_t *psf);
 #ifdef __cplusplus
 }
 #endif
