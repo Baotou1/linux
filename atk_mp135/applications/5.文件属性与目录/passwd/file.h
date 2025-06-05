@@ -25,9 +25,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <sys/time.h>
 #include "time.h"
-#include <utime.h>
 #include <stdbool.h>
 #include <pwd.h> 
 
@@ -35,94 +33,33 @@
 #include <unistd.h>
 extern "C" {
 #endif
-/**
- * @macro    __UMASK
- * @brief    设置进程的文件权限掩码（umask）并打印修改前后的值。
- */
-#define __UMASK(__mode)\
-                        do{\
-                            mode_t __old = umask(__mode);\
-                            printf("[UMASK] Changed umask: %04o → %04o\n", __old, __mode);\
-                        }while(0)
-/**
- * @macro    __CHMOD
- * @brief    修改文件权限，并在控制台打印结果，包含异常检查。
- *
- * 该宏在调用 chmod 修改文件权限前，执行以下检查：
- * 1. 路径不能为空；
- * 2. 文件必须存在；
- * 3. 当前进程必须对文件具有写权限；
- */
-#define __CHMOD(__pathname, __mode)\
-                                    do{\
-                                        if ((__pathname) == NULL)                 \
-                                            break;                                \
-                                        if (access((__pathname), F_OK) == -1)     \
-                                            break;                                \
-                                        if (access((__pathname), W_OK) == -1)     \
-                                            break;                                \
-                                        if (chmod((__pathname), (__mode)) == -1) {\
-                                            PRINT_ERROR();                        \
-                                            break;                                \
-                                        }                                         \
-                                        printf("[CHMOD] '%s' permission changed to: %04o\n", \
-                                            (__pathname), (__mode));              \
-                                    }while(0)
-/**
- * @macro    __ACCESS
- * @brief    检查文件是否存在及可访问权限（Exist、Read、Write、Execute），并在一行内输出所有拥有的权限。
- */
-#define __ACCESS_MODE(__pathname ,__mode ,__ret)\
-                                                do{\
-                                                    if(access((__pathname), __mode) == -1){\
-                                                        __ret = -1;\
-                                                    }\
-                                                }while(0)
-#define __ACCESS(__pathname)\
-                            do{\
-                                if ((__pathname) == NULL)                                     \
-                                    break;                                                    \
-                                                                                              \
-                                int _modes[] = {F_OK, R_OK, W_OK, X_OK};                      \
-                                const char *_types[] = {"Exist", "Read", "Write", "Execute"}; \
-                                                                                              \
-                                printf("[ACCESS] '%s' permission check: ", (__pathname));     \
-                                for (int i = 0; i < 4; i++) {                                 \
-                                    if (access((__pathname), _modes[i]) != -1)                \
-                                        printf("%s ", _types[i]);                             \
-                                }                                                             \
-                                printf("\n");                                                 \
-                            }while (0)
 
-/**
- * @macro    PRINT_ERROR
- * @brief    打印当前出错位置的详细信息（文件名、行号、错误码和错误描述）。
- */
+/* 错误打印宏 */
 #define PRINT_ERROR() \
     printf("Error at %s:%d, errno = %d: %s\n", __FILE__, __LINE__, errno, strerror(errno))
 
 /**
- * @macro   FILE_TYPE_STR
- * @brief   将文件类型宏（mode 的 S_IFMT 部分）转换为可读字符串。
+ * @brief 将文件类型（mode）转换为可读字符串。
+ *
+ * @param mode 文件的 st_mode 字段或文件类型宏（如 S_IFREG）
+ * @return 对应的英文类型字符串（如 "Regular File"）
  */
-#define FILE_TYPE_STR(__mode)\
-                                (\
-                                    ((__mode) & S_IFMT) == S_IFREG  ? "Regular File"    :         \
-                                    ((__mode) & S_IFMT) == S_IFDIR  ? "Directory"       :         \
-                                    ((__mode) & S_IFMT) == S_IFLNK  ? "Symbolic Link"   :         \
-                                    ((__mode) & S_IFMT) == S_IFIFO  ? "FIFO"            :         \
-                                    ((__mode) & S_IFMT) == S_IFCHR  ? "Character Device":         \
-                                    ((__mode) & S_IFMT) == S_IFBLK  ? "Block Device"    :         \
-                                    ((__mode) & S_IFMT) == S_IFSOCK ? "Socket"          :         \
-                                                                      "Unknown"                   \
-                                )
-
-/**
- * @macro    PRINT_FILE_INFO
- * @brief    打印文件相关信息，格式化输出文件属性和操作详情。
- */
-#define PRINT_FILE_INFO(action, pf)\
-                            printf(\
+static const char* file_type_str(int mode) {
+    switch (mode & S_IFMT) {
+        case S_IFREG:  return "Regular File";
+        case S_IFDIR:  return "Directory";
+        case S_IFLNK:  return "Symbolic Link";
+        case S_IFIFO:  return "FIFO";
+        case S_IFCHR:  return "Character Device";
+        case S_IFBLK:  return "Block Device";
+        case S_IFSOCK: return "Socket";
+        default:       return "Unknown";
+    }
+}
+/* 文件信息打印宏 */
+/* action 是你传给宏定义的一个字符串常量参数，代表当前执行的操作，比如 "read" 或 "write" */
+#define PRINT_FILE_INFO(action, pf)                                   \
+                            printf(                                                           \
                                 "[File Info]\n"                                               \
                                 "├─ File Name    : %s\n"                                      \
                                 "├─ Action       : %s\n"                                      \
@@ -139,12 +76,12 @@ extern "C" {
                                 "├─ Mtime        : %s\n"                                      \
                                 "└─ Ctime        : %s\n"                                      \
                                 ,                                                             \
-                                (pf)->__pathname,                                             \
+                                (pf)->name,                                                   \
                                 action,                                                       \
                                 (pf)->ret,                                                    \
                                 (pf)->fst->st.st_size,                                        \
                                 (pf)->fst->st.st_ino,                                         \
-                                FILE_TYPE_STR((pf)->fst->type),                               \
+                                file_type_str((pf)->fst->type),                               \
                                 (pf)->fst->rwx,                                               \
                                 (pf)->fst->st.st_uid,                                         \
                                 (pf)->fst->pw ? (pf)->fst->pw->pw_name : "unknown",           \
@@ -210,25 +147,15 @@ typedef struct {
     off_t ofs;                  /**< 当前文件偏移量（与 lseek 操作相关） */
     int fg;                     /**< 文件打开标志（如 O_RDONLY, O_RDWR） */
     int fd;                     /**< 文件描述符（由 open 系统调用返回） */
-    char *__pathname;           /**< 文件路径名 */
+    char *name;                 /**< 文件名字符串 */
     struct __file_stat *fst;    /**< 指向文件属性信息结构体的指针 */
 } _file_t;
 
 /* 相关函数声明 */
-int _file_get_properties(char *__pathname ,struct __file_stat *fst);
-int _file_chown(_file_t *__pathname , uid_t owner, gid_t group);
-char* _file_normalize_path(const char *__pathname);
-int _file_set_time(const char *__pathname ,const struct timespec __times[2] ,int __flag);
-int _file_link(const char *__from, const char *__to);
-int _file_symlink(const char *__from, const char *__to);
-int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t __len);
+int _file_get_properties(char *name ,struct __file_stat *fst);
+int _file_chown(_file_t *pf , uid_t owner, gid_t group);
 void _file_close(_file_t *pf);
-#define FILE_CLOSE(pf)\
-                        do{\
-                            _file_close(pf);\
-                            pf = NULL;\
-                        }while(0)
-_file_t* _file_init(char *__pathname);
+_file_t* _file_init(char *name);
 int _file_open(_file_t *pf ,int fg ,mode_t md);
 int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len);
 int _file_write(_file_t *pfw ,void *data ,off_t ofs ,int whence ,size_t len);

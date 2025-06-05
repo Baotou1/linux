@@ -24,7 +24,7 @@
  * @author baotou
  * @date 2025-05-16
  *
- * @version 3.4.0 - 25/6/5
+ * @version 3.3.0 - 25/6/5
  *
  * @par 更新记录（Change Log）
  * - 2025-05-16：初始版本，实现基础的文件封装读写功能。 baotou
@@ -36,8 +36,7 @@
  * - 2025-06-01: 修改_file_get_size函数为_file_get_properties。 baotou
  * - 2025-06-02: 增加_file_get_type/get_rwx/get_time。 baotou
  * - 2025-06-02: 增加_file_chown。 baotou
- * - 2025-06-04: 增加_file_normalize_path和——file_set_time。 baotou
- * - 2025-06-05: 增加链接相关函数。 baotou
+ * - 2025-06-05: 增加_file_normalize_path和——file_set_time。 baotou
  */
 
 #include "file.h"
@@ -402,54 +401,7 @@ int _file_set_time(const char *__pathname ,const struct timespec __times[2] ,int
  */
 int _file_link(const char *__from, const char *__to)
 {
-    if(__from == NULL)
-        return -1;
-
     if(link(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_symlink(const char *__from, const char *__to)
-{
-    if(__from == NULL)
-        return -1;
-
-    if(symlink(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t __len)
-{
-    if(__path == NULL || __buf == NULL || __len == 0)
-        return -1;
-
-    if(readlink(__path ,__buf ,__len - 1) == -1){
         PRINT_ERROR();
         return -1;
     }

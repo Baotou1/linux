@@ -24,7 +24,7 @@
  * @author baotou
  * @date 2025-05-16
  *
- * @version 3.4.0 - 25/6/5
+ * @version 3.1.0 - 25/5/26
  *
  * @par 更新记录（Change Log）
  * - 2025-05-16：初始版本，实现基础的文件封装读写功能。 baotou
@@ -36,8 +36,6 @@
  * - 2025-06-01: 修改_file_get_size函数为_file_get_properties。 baotou
  * - 2025-06-02: 增加_file_get_type/get_rwx/get_time。 baotou
  * - 2025-06-02: 增加_file_chown。 baotou
- * - 2025-06-04: 增加_file_normalize_path和——file_set_time。 baotou
- * - 2025-06-05: 增加链接相关函数。 baotou
  */
 
 #include "file.h"
@@ -155,7 +153,11 @@ static void _file_get_rwx(struct stat *st ,int *rwx)
     
     *rwx = st->st_mode & 0777;
 }
+static void _file_check_rwx(int *rwx ,int flag)
+{
 
+}
+ 
 /**
  * @name  _file_get_time
  * @brief 将 time_t 时间格式转换为格式化的字符串时间表示。
@@ -217,17 +219,17 @@ static int _file_get_pw(struct passwd **ppw ,uid_t uid)
  * `__file_stat` 结构体中的 `st`（文件状态信息）、`type`（文件类型）、
  * `rwx`（权限信息）以及访问时间（atim）、修改时间（mtim）和更改时间（ctim）。
  *
- * @param[in]  __pathname  文件路径字符串，指向需要获取属性的文件。
- * @param[out] fst         指向 `__file_stat` 结构体的有效指针，用于接收文件属性信息。
+ * @param[in]  name  文件路径字符串，指向需要获取属性的文件。
+ * @param[out] fst   指向 `__file_stat` 结构体的有效指针，用于接收文件属性信息。
  *
  * @retval  0        成功获取文件属性。
  * @retval -1        获取失败（如参数无效或 stat 出错），并输出错误信息。
  *
  * @note  成功调用后，`fst->st`, `fst->type`, `fst->rwx`, `fst->atim`, `fst->mtim`, `fst->ctim` 均被更新。
  */
-int _file_get_properties(char *__pathname ,struct __file_stat *fst)
+int _file_get_properties(char *name ,struct __file_stat *fst)
 {
-    if(__pathname == NULL || fst == NULL)
+    if(name == NULL || fst == NULL)
         return -1;
 #if 0
     if(fstat(pf->fd ,&pf->st) == -1){
@@ -235,7 +237,7 @@ int _file_get_properties(char *__pathname ,struct __file_stat *fst)
         return -1;
     }
 #else
-    if(stat(__pathname ,&fst->st) == -1){
+    if(stat(name ,&fst->st) == -1){
         perror("get file size error.");
         return -1;
     }
@@ -301,12 +303,12 @@ static int _file_data_init(void **pptr ,size_t size)
  * @note  - 如果路径指针为空，函数直接返回失败。
  *        - 调用失败时，会打印错误信息。
  */
-static int __file_chown(const char *__pathname, uid_t _own, gid_t _grp)
+static int __file_chown(const char *_pt, uid_t _own, gid_t _grp)
 {
-    if(__pathname == NULL)
+    if(_pt == NULL)
         return -1;
 
-    if(chown(__pathname ,_own ,_grp) == -1){
+    if(chown(_pt ,_own ,_grp) == -1){
         PRINT_ERROR();
         return -1;
     }
@@ -332,10 +334,10 @@ static int __file_chown(const char *__pathname, uid_t _own, gid_t _grp)
  */
 int _file_chown(_file_t *pf , uid_t owner, gid_t group)
 {
-    if(__file_chown(pf->__pathname ,owner ,group) == -1)
+    if(__file_chown(pf->name ,owner ,group) == -1)
         return -FILE_ERROR;
 
-    if(_file_get_properties(pf->__pathname ,pf->fst) == -1)
+    if(_file_get_properties(pf->name ,pf->fst) == -1)
         return -FILE_ERROR;
 
     PRINT_FILE_INFO("chown" ,pf);
@@ -343,118 +345,36 @@ int _file_chown(_file_t *pf , uid_t owner, gid_t group)
 }
 
 /**
- * @name  _file_normalize_path
- * @brief 获取给定路径的规范化（绝对）路径。
+ * @name  _file_access
+ * @brief 检查指定文件的存在性及读、写、执行权限，并打印权限状态。
  *
- * 该函数使用 realpath() 将传入的路径转换为绝对路径，并解析其中的符号链接、"." 和 ".." 等。
- * 注意：realpath() 会在堆上分配内存，返回的路径字符串需要由调用者手动 free() 释放，以防内存泄漏。
+ * 该函数通过调用 `access` 系统调用，依次检查文件是否存在（F_OK）、
+ * 是否可读（R_OK）、是否可写（W_OK）以及是否可执行（X_OK），
+ * 并将对应的权限结果打印到终端。
  *
- * @param __pathname 要规范化的路径（可以是相对路径或绝对路径）
- * @return char* 返回规范化后的绝对路径字符串，失败返回 NULL
- */
-char* _file_normalize_path(const char *__pathname)
-{
-    /* realpath会在堆上分配一个内存 */
-    return realpath(__pathname ,NULL);
-}
-
-/**
- * @name  _file_set_time
- * @brief 设置文件的访问时间和修改时间。
- * 
- * @param __pathname 文件路径（可以是相对路径）
- * @param __times    两个时间点的数组（访问时间和修改时间），可为 NULL 表示使用当前时间
- * @param __flag     标志，比如 0 或 AT_SYMLINK_NOFOLLOW
+ * @param[in] _name 要检查权限的文件路径字符串指针，不能为空。
  *
- * @return 成功返回 0，失败返回 -1
+ * @return 无返回值。
+ *
+ * @note  
+ *  - 打印信息格式为“权限类型 permission: yes/no”。
+ *  - 函数只进行权限检查并打印结果，不改变文件权限。
  */
-int _file_set_time(const char *__pathname ,const struct timespec __times[2] ,int __flag)
+int _file_access(const char *_name)
 {
-    if(__pathname == NULL)
-        return -1;
+    int _modes[] = {F_OK ,R_OK , W_OK , X_OK};
+    const char *_types[] = {"Exist" ,"Read", "Write", "Execute"};
 
-    /* 转化为绝对路径 */
-    char *__res = _file_normalize_path(__pathname);
-    if(__res == NULL){
-        PRINT_ERROR();
-        return -1;
+    printf("%s:\n" ,_name);
+    for(int i = 0 ;i < 4 ;i++){
+        if(access(_name ,_modes[i]) == -1)
+        {
+            printf("%s permission: no\n" ,_types[i]);
+        }
+        else{
+            printf("%s permission: yes\n" ,_types[i]);
+        }
     }
-
-    /* 当pathname为绝对路径，忽略第一个参数 */
-    if(utimensat(-1 ,__res ,__times ,__flag) == -1)
-    {
-        PRINT_ERROR();
-        free(__res);
-        return -1;
-    }
-    free(__res);
-    return 0;      
-}
-
-/**
- * @name  _file_link
- * @brief 创建一个新的硬链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（硬链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_link(const char *__from, const char *__to)
-{
-    if(__from == NULL)
-        return -1;
-
-    if(link(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_symlink(const char *__from, const char *__to)
-{
-    if(__from == NULL)
-        return -1;
-
-    if(symlink(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t __len)
-{
-    if(__path == NULL || __buf == NULL || __len == 0)
-        return -1;
-
-    if(readlink(__path ,__buf ,__len - 1) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
 }
 
 /******************************************************************************************************************/ 
@@ -474,7 +394,7 @@ int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t
  */
 static int _file_get_info(_file_t *pf)
 {
-    if(_file_get_properties(pf->__pathname ,pf->fst) == -1)
+    if(_file_get_properties(pf->name ,pf->fst) == -1)
         return -1;
 
     if(_file_get_offset(pf) == -1)
@@ -503,12 +423,12 @@ void _file_close(_file_t *pf)
     if(pf == NULL)
         return;
 
-    printf("%s file close.\n" ,pf->__pathname);
+    printf("%s file close.\n" ,pf->name);
     if(pf->fd >= 0)
         close(pf->fd);
     
-    if(pf->__pathname !=NULL)
-        free(pf->__pathname);
+    if(pf->name !=NULL)
+        free(pf->name);
     
     if(pf->data != NULL)
         free(pf->data);
@@ -528,7 +448,7 @@ void _file_close(_file_t *pf)
  * 
  * 注意：pf->pw 指针初始化为 NULL，使用时应调用 getpwuid() 获取，不需预分配内存。
  *
- * @param[in] __pathname 文件路径名，不能为 NULL。
+ * @param[in] name 输入的文件名字符串，不能为 NULL。
  *
  * @return 成功返回指向 `_file_t` 结构体的指针，失败返回 NULL。
  *
@@ -536,9 +456,9 @@ void _file_close(_file_t *pf)
  * - 使用完毕后需调用对应的释放函数释放资源，防止内存泄漏。
  * - 返回的结构体中 `fd = -1` 表示尚未打开文件。
  */
-_file_t* _file_init(char *__pathname)
+_file_t* _file_init(char *name)
 {
-    if(__pathname == NULL)
+    if(name == NULL)
         return NULL;
         
     _file_t *pf = (_file_t *)calloc(1 ,sizeof(_file_t));
@@ -560,9 +480,9 @@ _file_t* _file_init(char *__pathname)
     pf->ret = 0;
     pf->fst->type = 0;
     pf->fst->rwx = 0;
-    //pf->__pathname 分配一块新的内存，并复制 name 字符串的内容进去，避免直接使用外部传入的指针，保证文件名的独立性和安全性
-    pf->__pathname = strdup(__pathname);
-    if(pf->__pathname == NULL){
+    //pf->name 分配一块新的内存，并复制 name 字符串的内容进去，避免直接使用外部传入的指针，保证文件名的独立性和安全性
+    pf->name = strdup(name);
+    if(pf->name == NULL){
         free(pf->fst);
         free(pf);
         return NULL;
@@ -598,13 +518,13 @@ _file_t* _file_init(char *__pathname)
      
      pf->fg = fg;
      
-     pf->fd = open(pf->__pathname ,pf->fg ,md);
+     pf->fd = open(pf->name ,pf->fg ,md);
      if(pf->fd == -1){
          PRINT_ERROR();
          return -FILE_ERROR;
      }
  
-     if(_file_get_properties(pf->__pathname ,pf->fst) == -1)
+     if(_file_get_properties(pf->name ,pf->fst) == -1)
          return -1;
  
      if(_file_get_offset(pf) == -1)
@@ -642,9 +562,9 @@ _file_t* _file_init(char *__pathname)
  
      if(_file_set_offset(pfr ,ofs ,whence) == -1)
          return -FILE_ERROR;
-     printf("set %s file read offset: %ld bytes\n" ,pfr->__pathname ,pfr->ofs);
+     printf("set %s file read offset: %ld bytes\n" ,pfr->name ,pfr->ofs);
      
-     if(_file_get_properties(pfr->__pathname ,pfr->fst) == -1)
+     if(_file_get_properties(pfr->name ,pfr->fst) == -1)
          return -1;
      
      len = (len > (pfr->fst->st.st_size - pfr->ofs))?  (pfr->fst->st.st_size - pfr->ofs): len;
@@ -692,7 +612,7 @@ _file_t* _file_init(char *__pathname)
  
      if(_file_set_offset(pfw ,ofs ,whence) == -1)
          return -FILE_ERROR;
-     printf("set %s file write offset: %ld bytes\n" ,pfw->__pathname ,pfw->ofs);
+     printf("set %s file write offset: %ld bytes\n" ,pfw->name ,pfw->ofs);
  
      pfw->ret = write(pfw->fd ,data ,len);
      if(pfw->ret == -1){
@@ -736,10 +656,10 @@ _file_t* _file_init(char *__pathname)
  #ifdef __PRINT_FILEOFS
      if(_file_get_offset(pfr) == -1)
          return -FILE_ERROR;
-     printf("get %s file offset: %ld bytes\n" ,pfr->__pathname ,pfr->ofs);    
+     printf("get %s file offset: %ld bytes\n" ,pfr->name ,pfr->ofs);    
  #endif
  
-     if(_file_get_properties(pfr->__pathname ,pfr->fst) == -1)
+     if(_file_get_properties(pfr->name ,pfr->fst) == -1)
          return -1;
  
      len = (len > (pfr->fst->st.st_size - ofs))?  (pfr->fst->st.st_size - ofs): len;
@@ -789,7 +709,7 @@ _file_t* _file_init(char *__pathname)
  #ifdef __PRINT_FILEOFS
      if(_file_get_offset(pfw) == -1)
          return -FILE_ERROR;
-     printf("get %s file offset: %ld bytes\n" ,pfw->__pathname ,pfw->ofs);
+     printf("get %s file offset: %ld bytes\n" ,pfw->name ,pfw->ofs);
  #endif
  
      pfw->ret = pwrite(pfw->fd ,data ,len ,ofs);
@@ -942,7 +862,7 @@ _file_t* _file_init(char *__pathname)
          (cmd != FILE_F_TRUNCATE && cmd != FILE_TRUNCATE))
          return -FILE_ERROR;
  
-     if(_file_get_properties(pf->__pathname ,pf->fst)  == -1)
+     if(_file_get_properties(pf->name ,pf->fst)  == -1)
          return -1;
      
      size_t fs = pf->fst->st.st_size;
@@ -1011,7 +931,7 @@ _file_t* _file_init(char *__pathname)
      if(_file_set_offset(pfp ,ofs ,SEEK_SET) == -1)
          return -FILE_ERROR;
      
-     if(_file_get_properties(pfp->__pathname ,pfp->fst) == -1)
+     if(_file_get_properties(pfp->name ,pfp->fst) == -1)
          return -1;
      
      len = (len > (pfp->fst->st.st_size - pfp->ofs))?  (pfp->fst->st.st_size - pfp->ofs): len;
@@ -1025,7 +945,7 @@ _file_t* _file_init(char *__pathname)
          return -FILE_ERROR;
      }
  
-     printf("---------- print the contents of file: %s ----------\n", pfp->__pathname);
+     printf("---------- print the contents of file: %s ----------\n", pfp->name);
      for (int i = 0; i < pfp->ret; ++i) {
          putchar((char)((unsigned char *)pfp->data)[i]);
      }
@@ -1067,7 +987,7 @@ _file_t* _file_init(char *__pathname)
      if(_file_set_offset(pfp ,ofs ,SEEK_SET) == -1)
          return -FILE_ERROR;
      
-     if(_file_get_properties(pfp->__pathname ,pfp->fst)  == -1)
+     if(_file_get_properties(pfp->name ,pfp->fst)  == -1)
          return -1;
      
      len = (len > (pfp->fst->st.st_size - pfp->ofs))?  (pfp->fst->st.st_size - pfp->ofs): len;
@@ -1081,7 +1001,7 @@ _file_t* _file_init(char *__pathname)
          return -FILE_ERROR;
      }
  
-     printf("---------- print the contents of file: %s ----------\n", pfp->__pathname);
+     printf("---------- print the contents of file: %s ----------\n", pfp->name);
      unsigned char *p = (unsigned char *)pfp->data;
      for (int i = 0; i < pfp->ret; ++i)
          printf("0x%02X ", p[i]);

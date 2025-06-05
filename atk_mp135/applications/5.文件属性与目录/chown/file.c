@@ -24,7 +24,7 @@
  * @author baotou
  * @date 2025-05-16
  *
- * @version 3.4.0 - 25/6/5
+ * @version 3.1.0 - 25/5/26
  *
  * @par 更新记录（Change Log）
  * - 2025-05-16：初始版本，实现基础的文件封装读写功能。 baotou
@@ -36,256 +36,226 @@
  * - 2025-06-01: 修改_file_get_size函数为_file_get_properties。 baotou
  * - 2025-06-02: 增加_file_get_type/get_rwx/get_time。 baotou
  * - 2025-06-02: 增加_file_chown。 baotou
- * - 2025-06-04: 增加_file_normalize_path和——file_set_time。 baotou
- * - 2025-06-05: 增加链接相关函数。 baotou
  */
 
-#include "file.h"
-int _file_status_fcntl(_file_t *pf ,int cmd, ...);
-/**
- * @name _file_get_offset
- * @brief 获取文件当前偏移量。
- *
- * 此函数使用 lseek 函数（配合 SEEK_CUR）获取文件描述符当前的偏移位置，
- * 即下次读取或写入时的位置，并将该值更新到 _file_t 结构体中的 ofs 字段中。
- *
- * @param[in,out] pf 指向 _file_t 结构体的指针，结构体中需包含有效的文件描述符 fd。
- *
- * @return 成功返回 0，失败返回 -1，并使用 perror 打印警告信息。
- */
-static int _file_get_offset(_file_t *pf)
-{
-    pf->ofs = lseek(pf->fd ,0 ,SEEK_CUR);
-    if(pf->ofs == -1){
-        perror("Warning: lseek get now current failed.");
-        return -1;
-    }
-    return 0;
-}
+ #include "file.h"
+ int _file_status_fcntl(_file_t *pf ,int cmd, ...);
+ /**
+  * @name _file_get_offset
+  * @brief 获取文件当前偏移量。
+  *
+  * 此函数使用 lseek 函数（配合 SEEK_CUR）获取文件描述符当前的偏移位置，
+  * 即下次读取或写入时的位置，并将该值更新到 _file_t 结构体中的 ofs 字段中。
+  *
+  * @param[in,out] pf 指向 _file_t 结构体的指针，结构体中需包含有效的文件描述符 fd。
+  *
+  * @return 成功返回 0，失败返回 -1，并使用 perror 打印警告信息。
+  */
+ static int _file_get_offset(_file_t *pf)
+ {
+     pf->ofs = lseek(pf->fd ,0 ,SEEK_CUR);
+     if(pf->ofs == -1){
+         perror("Warning: lseek get now current failed.");
+         return -1;
+     }
+     return 0;
+ }
   
-/**
- * @name _file_set_offset
- * @brief 设置文件偏移量。
- *
- * 此函数使用 lseek 设置文件描述符的读写位置（偏移量），偏移方式由 whence 参数指定。
- * 设置成功后，会将新的偏移量写入 _file_t 结构体中的 ofs 字段中。
- *
- * @param[in,out] pf 指向 _file_t 结构体的指针，结构体中需包含有效的文件描述符 fd。
- * @param offset 偏移量值，结合 whence 决定新的读写位置。
- * @param whence 偏移方式（如 SEEK_SET 表示从文件开头偏移，SEEK_CUR 表示从当前位置偏移等）。
- *
- * @return 成功返回 0，失败返回 -1，并使用 perror 打印警告信息。
- */
-static int _file_set_offset(_file_t *pf ,off_t offset ,int whence)
-{
-    pf->ofs = lseek(pf->fd ,offset ,whence);
-    if(pf->ofs == -1){
-        perror("Warning: read lseek failed");
-        return -1;
-    }      
-    return 0;
-}
+ /**
+  * @name _file_set_offset
+  * @brief 设置文件偏移量。
+  *
+  * 此函数使用 lseek 设置文件描述符的读写位置（偏移量），偏移方式由 whence 参数指定。
+  * 设置成功后，会将新的偏移量写入 _file_t 结构体中的 ofs 字段中。
+  *
+  * @param[in,out] pf 指向 _file_t 结构体的指针，结构体中需包含有效的文件描述符 fd。
+  * @param offset 偏移量值，结合 whence 决定新的读写位置。
+  * @param whence 偏移方式（如 SEEK_SET 表示从文件开头偏移，SEEK_CUR 表示从当前位置偏移等）。
+  *
+  * @return 成功返回 0，失败返回 -1，并使用 perror 打印警告信息。
+  */
+ static int _file_set_offset(_file_t *pf ,off_t offset ,int whence)
+ {
+     pf->ofs = lseek(pf->fd ,offset ,whence);
+     if(pf->ofs == -1){
+         perror("Warning: read lseek failed");
+         return -1;
+     }      
+     return 0;
+ }
  
-/**
- * @name  _file_get_type
- * @brief 根据文件的 st_mode 字段解析其类型。
- *
- * 该函数通过检查 `struct stat` 中的 `st_mode` 字段，判断文件类型，
- * 并将对应的类型宏（如 `__S_IFREG`、`__S_IFDIR` 等）写入传出参数 `type`。
- *
- * @param[in]  st    指向有效的 struct stat 结构体，用于获取文件信息。
- * @param[out] type  指向 int 类型的输出变量，用于接收文件类型标志。
- *
- * @note 若 st 为空，则函数直接返回。未识别的类型将被设置为 0。
- */
-static void _file_get_type(struct stat *st ,int *type)
-{
-    if(st == NULL)
-        return;
-
-    /* 管道文件 */
-    if(S_ISFIFO(st->st_mode) == true){
-        *type = __S_IFIFO;
-    }
-    /* 字符设备设备文件 */
-    else if(S_ISCHR(st->st_mode) == true){
-        *type = __S_IFCHR;
-    }
-    /* 目录文件 */
-    else if(S_ISDIR(st->st_mode) == true){
-        *type = __S_IFDIR;
-    }
-    /* 块设备文件 */
-    else if(S_ISBLK(st->st_mode) == true){
-        *type = __S_IFBLK;
-    }
-    /* 普通文件 */
-    else if(S_ISREG(st->st_mode) == true){
-        *type = __S_IFREG;
-    }
-    /* 链接文件 */
-    else if(S_ISLNK(st->st_mode) == true){
-        *type = __S_IFLNK;
-    }
-    /* 套接字文件 */
-    else if(S_ISSOCK(st->st_mode) == true){
-        *type = __S_IFSOCK;
-    }
-    else{
-        *type = 0;
-    }
-} 
+ /**
+  * @name  _file_get_type
+  * @brief 根据文件的 st_mode 字段解析其类型。
+  *
+  * 该函数通过检查 `struct stat` 中的 `st_mode` 字段，判断文件类型，
+  * 并将对应的类型宏（如 `__S_IFREG`、`__S_IFDIR` 等）写入传出参数 `type`。
+  *
+  * @param[in]  st    指向有效的 struct stat 结构体，用于获取文件信息。
+  * @param[out] type  指向 int 类型的输出变量，用于接收文件类型标志。
+  *
+  * @note 若 st 为空，则函数直接返回。未识别的类型将被设置为 0。
+  */
+ static void _file_get_type(struct stat *st ,int *type)
+ {
+     if(st == NULL)
+         return;
  
-/**
- * @name  _file_get_rwx
- * @brief 提取文件权限（读/写/执行）位。
- *
- * 该函数从 `struct stat` 中提取最低 9 位权限标志（即 rwxrwxrwx），
- * 并将结果写入输出参数 `rwx`。
- *
- * @param[in]  st   指向有效的 struct stat 结构体。
- * @param[out] rwx  指向 int 类型的输出变量，用于接收权限值（八进制表示）。
- *
- * @note 若 st 为 NULL，函数将直接返回。
- */
-static void _file_get_rwx(struct stat *st ,int *rwx)
-{
-    if(st == NULL)
-        return;
-    
-    *rwx = st->st_mode & 0777;
-}
-
-/**
- * @name  _file_get_time
- * @brief 将 time_t 时间格式转换为格式化的字符串时间表示。
- *
- * 该函数使用 `localtime_r` 将给定的 `time_t` 时间转换为本地时间的 `struct tm`，
- * 并通过 `strftime` 将时间格式化为“YYYY-MM-DD HH:MM:SS”格式字符串，
- * 写入到调用者提供的缓冲区 `__buf` 中。
- *
- * @param[in]  __timer  指向有效的 time_t 类型时间变量。
- * @param[out] __buf    用于存放格式化时间字符串的字符缓冲区，建议大小至少为 100 字节。
- *
- * @note 函数不做缓冲区长度检查，调用者需保证 `__buf` 有足够空间。
- *       如果 `__timer` 为空指针，函数行为未定义，应避免传入 NULL。
- */
-static void _file_get_time(const time_t *__timer ,char *__buf)
-{
-    struct tm _tm;
-
-    localtime_r(__timer ,&_tm);
-    strftime(__buf, 100,\
-                        "%Y-%m-%d %H:%M:%S", &_tm);
-}
-
-/**
- * @name  _file_get_pw
- * @brief 根据 UID 获取用户的 passwd 结构体信息。
- *
- * 此函数通过调用 `getpwuid` 系统接口，根据指定的用户 ID（uid）获取对应的用户信息，
- * 并将结果赋值给传入的 passwd 结构体指针指针。
- *
- * @param[out] ppw  指向 `struct passwd*` 的指针（即二级指针），用于返回获取到的用户信息。
- * @param[in]  uid  要查询的用户 ID（User ID）。
- *
- * @return 成功返回 0，失败返回 -1。
- *
- * @note
- * - `getpwuid` 返回的是一个指向静态内存的指针，因此不应对 `*ppw` 结果进行释放。
- * - 函数不分配新内存，只是将 `getpwuid` 的结果赋给 `*ppw`。
- * - 调用方需保证 `ppw` 本身是有效的地址。
- */
-
-static int _file_get_pw(struct passwd **ppw ,uid_t uid)
-{
-    if(ppw == NULL)
-        return -1;
-
-    *ppw = getpwuid(uid);
-
-    if(*ppw == NULL)
-        return -1;
-    return 0;
-}
-
-/**
- * @name  _file_get_properties
- * @brief 获取并更新指定文件的属性信息，包括类型、权限及时间戳。
- *
- * 该函数使用 `stat()` 系统调用获取指定路径文件的元数据，并更新传入的
- * `__file_stat` 结构体中的 `st`（文件状态信息）、`type`（文件类型）、
- * `rwx`（权限信息）以及访问时间（atim）、修改时间（mtim）和更改时间（ctim）。
- *
- * @param[in]  __pathname  文件路径字符串，指向需要获取属性的文件。
- * @param[out] fst         指向 `__file_stat` 结构体的有效指针，用于接收文件属性信息。
- *
- * @retval  0        成功获取文件属性。
- * @retval -1        获取失败（如参数无效或 stat 出错），并输出错误信息。
- *
- * @note  成功调用后，`fst->st`, `fst->type`, `fst->rwx`, `fst->atim`, `fst->mtim`, `fst->ctim` 均被更新。
- */
-int _file_get_properties(char *__pathname ,struct __file_stat *fst)
-{
-    if(__pathname == NULL || fst == NULL)
-        return -1;
-#if 0
-    if(fstat(pf->fd ,&pf->st) == -1){
-        perror("get file size error.");
-        return -1;
-    }
-#else
-    if(stat(__pathname ,&fst->st) == -1){
-        perror("get file size error.");
-        return -1;
-    }
-#endif
-    _file_get_type(&fst->st ,&fst->type);
-    _file_get_rwx(&fst->st ,&fst->rwx);
-    _file_get_time(&fst->st.st_atim.tv_sec ,fst->atim);
-    _file_get_time(&fst->st.st_mtim.tv_sec ,fst->mtim);
-    _file_get_time(&fst->st.st_ctim.tv_sec ,fst->ctim);
-    _file_get_pw(&fst->pw ,fst->st.st_uid);
-    return 0;
-}
-
-/**
- * @name  _file_data_init
- * @brief 初始化或重置数据缓冲区。
- *
- * 该函数用于初始化或重新初始化指针所指向的数据缓冲区。若指针当前非空，
- * 会先释放已有内存，防止内存泄漏。随后分配指定大小的缓冲区，并将其内容清零。
- *
- * @param[in,out] pptr 指向需要初始化的指针的地址（即二级指针），
- *                     函数将修改该指针指向新分配的缓冲区。
- * @param[in]     size 需要分配的缓冲区大小（单位：字节）。
- *
- * @return 成功返回 0，失败返回 -1。
- *
- * @note  - 如果输入指针为空或 size 为 0，函数直接返回失败。
- *        - 分配失败时，会打印错误信息，但不会终止程序。
- *        - 调用前应确保 pptr 指向有效地址。
- */
-static int _file_data_init(void **pptr ,size_t size)
-{
-    if(pptr == NULL || size == 0)
-        return -1;
-
-    if(*pptr != NULL){
-        free(*pptr);
-        *pptr = NULL;
-    }
-
-    *pptr = calloc(size ,sizeof(char));
-    if(*pptr == NULL){
-        printf("calloc error...\n");
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
+     /* 管道文件 */
+     if(S_ISFIFO(st->st_mode) == true){
+         *type = __S_IFIFO;
+     }
+     /* 字符设备设备文件 */
+     else if(S_ISCHR(st->st_mode) == true){
+         *type = __S_IFCHR;
+     }
+     /* 目录文件 */
+     else if(S_ISDIR(st->st_mode) == true){
+         *type = __S_IFDIR;
+     }
+     /* 块设备文件 */
+     else if(S_ISBLK(st->st_mode) == true){
+         *type = __S_IFBLK;
+     }
+     /* 普通文件 */
+     else if(S_ISREG(st->st_mode) == true){
+         *type = __S_IFREG;
+     }
+     /* 链接文件 */
+     else if(S_ISLNK(st->st_mode) == true){
+         *type = __S_IFLNK;
+     }
+     /* 套接字文件 */
+     else if(S_ISSOCK(st->st_mode) == true){
+         *type = __S_IFSOCK;
+     }
+     else{
+         *type = 0;
+     }
+ } 
+ 
+ /**
+  * @name  _file_get_rwx
+  * @brief 提取文件权限（读/写/执行）位。
+  *
+  * 该函数从 `struct stat` 中提取最低 9 位权限标志（即 rwxrwxrwx），
+  * 并将结果写入输出参数 `rwx`。
+  *
+  * @param[in]  st   指向有效的 struct stat 结构体。
+  * @param[out] rwx  指向 int 类型的输出变量，用于接收权限值（八进制表示）。
+  *
+  * @note 若 st 为 NULL，函数将直接返回。
+  */
+ static void _file_get_rwx(struct stat *st ,int *rwx)
+ {
+     if(st == NULL)
+         return;
+     
+     *rwx = st->st_mode & 0777;
+ }
+ static void _file_check_rwx(int *rwx ,int flag)
+ {
+ 
+ }
+ 
+ /**
+  * @name  _file_get_time
+  * @brief 将 time_t 时间格式转换为格式化的字符串时间表示。
+  *
+  * 该函数使用 `localtime_r` 将给定的 `time_t` 时间转换为本地时间的 `struct tm`，
+  * 并通过 `strftime` 将时间格式化为“YYYY-MM-DD HH:MM:SS”格式字符串，
+  * 写入到调用者提供的缓冲区 `__buf` 中。
+  *
+  * @param[in]  __timer  指向有效的 time_t 类型时间变量。
+  * @param[out] __buf    用于存放格式化时间字符串的字符缓冲区，建议大小至少为 100 字节。
+  *
+  * @note 函数不做缓冲区长度检查，调用者需保证 `__buf` 有足够空间。
+  *       如果 `__timer` 为空指针，函数行为未定义，应避免传入 NULL。
+  */
+ static void _file_get_time(const time_t *__timer ,char *__buf)
+ {
+     struct tm _tm;
+ 
+     localtime_r(__timer ,&_tm);
+     strftime(__buf, 100,\
+                         "%Y-%m-%d %H:%M:%S", &_tm);
+ }
+ 
+ /**
+  * @name  _file_get_properties
+  * @brief 获取并更新指定文件的属性信息，包括类型、权限及时间戳。
+  *
+  * 该函数使用 `stat()` 系统调用获取指定路径文件的元数据，并更新传入的
+  * `__file_stat` 结构体中的 `st`（文件状态信息）、`type`（文件类型）、
+  * `rwx`（权限信息）以及访问时间（atim）、修改时间（mtim）和更改时间（ctim）。
+  *
+  * @param[in]  name  文件路径字符串，指向需要获取属性的文件。
+  * @param[out] fst   指向 `__file_stat` 结构体的有效指针，用于接收文件属性信息。
+  *
+  * @retval  0        成功获取文件属性。
+  * @retval -1        获取失败（如参数无效或 stat 出错），并输出错误信息。
+  *
+  * @note  成功调用后，`fst->st`, `fst->type`, `fst->rwx`, `fst->atim`, `fst->mtim`, `fst->ctim` 均被更新。
+  */
+ int _file_get_properties(char *name ,struct __file_stat *fst)
+ {
+     if(name == NULL || fst == NULL)
+         return -1;
+ #if 0
+     if(fstat(pf->fd ,&pf->st) == -1){
+         perror("get file size error.");
+         return -1;
+     }
+ #else
+     if(stat(name ,&fst->st) == -1){
+         perror("get file size error.");
+         return -1;
+     }
+ #endif
+     _file_get_type(&fst->st ,&fst->type);
+     _file_get_rwx(&fst->st ,&fst->rwx);
+     _file_get_time(&fst->st.st_atim.tv_sec ,fst->atim);
+     _file_get_time(&fst->st.st_mtim.tv_sec ,fst->mtim);
+     _file_get_time(&fst->st.st_ctim.tv_sec ,fst->ctim);
+     return 0;
+ }
+ 
+ /**
+  * @name  _file_data_init
+  * @brief 初始化或重置数据缓冲区。
+  *
+  * 该函数用于初始化或重新初始化指针所指向的数据缓冲区。若指针当前非空，
+  * 会先释放已有内存，防止内存泄漏。随后分配指定大小的缓冲区，并将其内容清零。
+  *
+  * @param[in,out] pptr 指向需要初始化的指针的地址（即二级指针），
+  *                     函数将修改该指针指向新分配的缓冲区。
+  * @param[in]     size 需要分配的缓冲区大小（单位：字节）。
+  *
+  * @return 成功返回 0，失败返回 -1。
+  *
+  * @note  - 如果输入指针为空或 size 为 0，函数直接返回失败。
+  *        - 分配失败时，会打印错误信息，但不会终止程序。
+  *        - 调用前应确保 pptr 指向有效地址。
+  */
+ static int _file_data_init(void **pptr ,size_t size)
+ {
+     if(pptr == NULL || size == 0)
+         return -1;
+ 
+     if(*pptr != NULL){
+         free(*pptr);
+         *pptr = NULL;
+     }
+ 
+     *pptr = calloc(size ,sizeof(char));
+     if(*pptr == NULL){
+         printf("calloc error...\n");
+         return -1;
+     }
+ 
+     return 0;
+ }
+ /**
  * @name  __file_chown
  * @brief 修改指定路径文件的属主和属组。
  *
@@ -301,19 +271,19 @@ static int _file_data_init(void **pptr ,size_t size)
  * @note  - 如果路径指针为空，函数直接返回失败。
  *        - 调用失败时，会打印错误信息。
  */
-static int __file_chown(const char *__pathname, uid_t _own, gid_t _grp)
-{
-    if(__pathname == NULL)
+ static int __file_chown(const char *_pt, uid_t _own, gid_t _grp)
+ {
+    if(_pt == NULL)
         return -1;
 
-    if(chown(__pathname ,_own ,_grp) == -1){
+     if(chown(_pt ,_own ,_grp) == -1){
         PRINT_ERROR();
         return -1;
-    }
-    
-    return 0;
-}
-
+     }
+      
+     return 0;
+ }
+ 
 /**
  * @name  _file_chown
  * @brief 修改 _file_t 结构体对应文件的属主和属组，并更新文件属性信息。
@@ -331,246 +301,127 @@ static int __file_chown(const char *__pathname, uid_t _own, gid_t _grp)
  *        - 确保 pf 结构体内部字段已正确初始化。
  */
 int _file_chown(_file_t *pf , uid_t owner, gid_t group)
-{
-    if(__file_chown(pf->__pathname ,owner ,group) == -1)
+ {
+    if(__file_chown(pf->name ,owner ,group) == -1)
         return -FILE_ERROR;
 
-    if(_file_get_properties(pf->__pathname ,pf->fst) == -1)
+    if(_file_get_properties(pf->name ,pf->fst) == -1)
         return -FILE_ERROR;
-
     PRINT_FILE_INFO("chown" ,pf);
+
     return FILE_EOK;
-}
+ }
 
-/**
- * @name  _file_normalize_path
- * @brief 获取给定路径的规范化（绝对）路径。
- *
- * 该函数使用 realpath() 将传入的路径转换为绝对路径，并解析其中的符号链接、"." 和 ".." 等。
- * 注意：realpath() 会在堆上分配内存，返回的路径字符串需要由调用者手动 free() 释放，以防内存泄漏。
- *
- * @param __pathname 要规范化的路径（可以是相对路径或绝对路径）
- * @return char* 返回规范化后的绝对路径字符串，失败返回 NULL
- */
-char* _file_normalize_path(const char *__pathname)
-{
-    /* realpath会在堆上分配一个内存 */
-    return realpath(__pathname ,NULL);
-}
-
-/**
- * @name  _file_set_time
- * @brief 设置文件的访问时间和修改时间。
- * 
- * @param __pathname 文件路径（可以是相对路径）
- * @param __times    两个时间点的数组（访问时间和修改时间），可为 NULL 表示使用当前时间
- * @param __flag     标志，比如 0 或 AT_SYMLINK_NOFOLLOW
- *
- * @return 成功返回 0，失败返回 -1
- */
-int _file_set_time(const char *__pathname ,const struct timespec __times[2] ,int __flag)
-{
-    if(__pathname == NULL)
-        return -1;
-
-    /* 转化为绝对路径 */
-    char *__res = _file_normalize_path(__pathname);
-    if(__res == NULL){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    /* 当pathname为绝对路径，忽略第一个参数 */
-    if(utimensat(-1 ,__res ,__times ,__flag) == -1)
-    {
-        PRINT_ERROR();
-        free(__res);
-        return -1;
-    }
-    free(__res);
-    return 0;      
-}
-
-/**
- * @name  _file_link
- * @brief 创建一个新的硬链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（硬链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_link(const char *__from, const char *__to)
-{
-    if(__from == NULL)
-        return -1;
-
-    if(link(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_symlink(const char *__from, const char *__to)
-{
-    if(__from == NULL)
-        return -1;
-
-    if(symlink(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t __len)
-{
-    if(__path == NULL || __buf == NULL || __len == 0)
-        return -1;
-
-    if(readlink(__path ,__buf ,__len - 1) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/******************************************************************************************************************/ 
-/**
- * @name  _file_get_info
- * @brief 获取并更新文件结构体中的文件大小与当前偏移信息。
- *
- * 此函数内部依次调用 `_file_get_properties()` 和 `_file_get_offset()`，
- * 用于更新 `_file_t` 结构体中的 `st` 和 `ofs` 字段。
- *
- * @param[in,out] pf   文件结构体指针，不能为空，且内部包含有效的文件描述符。
- *
- * @retval 0           成功更新文件大小和偏移信息。
- * @retval -1          任意一个调用失败（如文件未打开、fd 无效等）。
- *
- * @note 调用本函数可确保 `pf->size` 与 `pf->ofs` 字段为最新状态。
- */
-static int _file_get_info(_file_t *pf)
-{
-    if(_file_get_properties(pf->__pathname ,pf->fst) == -1)
-        return -1;
-
-    if(_file_get_offset(pf) == -1)
-        return -1;
-
-    if(_file_status_fcntl(pf ,F_GETFL) == -1)
-        return -1;
-
-    return 0;
-}
+ /******************************************************************************************************************/ 
+ /**
+  * @name  _file_get_info
+  * @brief 获取并更新文件结构体中的文件大小与当前偏移信息。
+  *
+  * 此函数内部依次调用 `_file_get_properties()` 和 `_file_get_offset()`，
+  * 用于更新 `_file_t` 结构体中的 `st` 和 `ofs` 字段。
+  *
+  * @param[in,out] pf   文件结构体指针，不能为空，且内部包含有效的文件描述符。
+  *
+  * @retval 0           成功更新文件大小和偏移信息。
+  * @retval -1          任意一个调用失败（如文件未打开、fd 无效等）。
+  *
+  * @note 调用本函数可确保 `pf->size` 与 `pf->ofs` 字段为最新状态。
+  */
+ static int _file_get_info(_file_t *pf)
+ {
+     if(_file_get_properties(pf->name ,pf->fst) == -1)
+         return -1;
  
-/**
- * @name _file_close
- * @brief 关闭文件并释放关联的内存资源。
- *
- * 此函数用于关闭文件描述符，并释放 _file_t 结构体中分配的内存资源，包括文件名和数据缓冲区。
- * 需要注意的是，pf->pw 指针通常指向由 getpwuid() 返回的静态内存，不能调用 free。
- * 即使传入的指针为 NULL，也不会导致程序崩溃。
- *
- * @param[in] pf 指向 _file_t 结构体的指针，可以为 NULL。
- *
- * @return 无。
- */
-void _file_close(_file_t *pf)
-{
-    if(pf == NULL)
-        return;
-
-    printf("%s file close.\n" ,pf->__pathname);
-    if(pf->fd >= 0)
-        close(pf->fd);
-    
-    if(pf->__pathname !=NULL)
-        free(pf->__pathname);
-    
-    if(pf->data != NULL)
-        free(pf->data);
-
-    if(pf->fst != NULL)
-        free(pf->fst);
-
-    free(pf);    
-}
+     if(_file_get_offset(pf) == -1)
+         return -1;
+ 
+     if(_file_status_fcntl(pf ,F_GETFL) == -1)
+         return -1;
+ 
+     return 0;
+ }
+ 
+ /**
+  * @name _file_close
+  * @brief 关闭文件并释放关联的内存资源。
+  *
+  * 此函数用于关闭文件描述符，并释放 _file_t 结构体中分配的内存资源，包括文件名和数据缓冲区。
+  * 即使传入的指针为 NULL，也不会导致程序崩溃。
+  *
+  * @param[in] pf 指向 _file_t 结构体的指针，可以为 NULL。
+  *
+  * @return 无。
+  */
+ void _file_close(_file_t *pf)
+ {
+     if(pf == NULL)
+         return;
+ 
+     printf("%s file close.\n" ,pf->name);
+     if(pf->fd >= 0)
+         close(pf->fd);
+     
+     if(pf->name !=NULL)
+         free(pf->name);
+     
+     if(pf->data != NULL)
+         free(pf->data);
+ 
+     if(pf->fst != NULL)
+         free(pf->fst);
+     
+     free(pf);    
+ }
   
-/**
- * @name   _file_init
- * @brief  初始化一个 _file_t 文件对象。
- *
- * 该函数会为 `_file_t` 结构体及其内部使用的 `__file_stat` 结构体分配内存，
- * 并复制传入的文件名字符串，确保其独立性和安全性。
- * 
- * 注意：pf->pw 指针初始化为 NULL，使用时应调用 getpwuid() 获取，不需预分配内存。
- *
- * @param[in] __pathname 文件路径名，不能为 NULL。
- *
- * @return 成功返回指向 `_file_t` 结构体的指针，失败返回 NULL。
- *
- * @note
- * - 使用完毕后需调用对应的释放函数释放资源，防止内存泄漏。
- * - 返回的结构体中 `fd = -1` 表示尚未打开文件。
- */
-_file_t* _file_init(char *__pathname)
-{
-    if(__pathname == NULL)
-        return NULL;
-        
-    _file_t *pf = (_file_t *)calloc(1 ,sizeof(_file_t));
-    if(pf == NULL)
-        return NULL;
-
-    pf->fst = (struct __file_stat*)calloc(1 ,sizeof(struct __file_stat));
-    if(pf->fst == NULL){
-        free(pf);
-        return NULL;
-    }
-    // 不再给 pf->pw 分配内存，改为初始化为 NULL
-    pf->fst->pw = NULL;
-
-    pf->fd = -1;
-    pf->data = NULL;
-    pf->fg = 0;
-    pf->ofs = 0;
-    pf->ret = 0;
-    pf->fst->type = 0;
-    pf->fst->rwx = 0;
-    //pf->__pathname 分配一块新的内存，并复制 name 字符串的内容进去，避免直接使用外部传入的指针，保证文件名的独立性和安全性
-    pf->__pathname = strdup(__pathname);
-    if(pf->__pathname == NULL){
-        free(pf->fst);
-        free(pf);
-        return NULL;
-    }
-
-    return pf;
-}
-
+ /**
+  * @name   _file_init
+  * @brief  初始化一个 _file_t 文件对象。
+  *
+  * 该函数会为 `_file_t` 结构体及其内部使用的 `__file_stat` 结构体分配内存，
+  * 并复制传入的文件名字符串，确保其独立性和安全性。
+  *
+  * @param[in] name 输入的文件名字符串，不能为 NULL。
+  *
+  * @return 成功返回指向 `_file_t` 结构体的指针，失败返回 NULL。
+  *
+  * @note
+  * - 使用完毕后需调用对应的释放函数释放资源，防止内存泄漏。
+  * - 返回的结构体中 `fd = -1` 表示尚未打开文件。
+  */
+ 
+ _file_t* _file_init(char *name)
+ {
+     if(name == NULL)
+         return NULL;
+         
+     _file_t *pf = (_file_t *)calloc(1 ,sizeof(_file_t));
+     if(pf == NULL)
+         return NULL;
+ 
+     pf->fst = (struct __file_stat*)calloc(1 ,sizeof(struct __file_stat));
+     if(pf->fst == NULL){
+         free(pf);
+         return NULL;
+     }
+ 
+     pf->fd = -1;
+     pf->data = NULL;
+     pf->fg = 0;
+     pf->ofs = 0;
+     pf->ret = 0;
+     pf->fst->type = 0;
+     pf->fst->rwx = 0;
+     //pf->name 分配一块新的内存，并复制 name 字符串的内容进去，避免直接使用外部传入的指针，保证文件名的独立性和安全性
+     pf->name = strdup(name);
+     if(pf->name == NULL){
+         free(pf->fst);
+         free(pf);
+         return NULL;
+     }
+ 
+     return pf;
+ }
+  
  /**
   * @name _file_open
   * @brief 打开或创建文件，并初始化 _file_t 结构体中的相关字段。
@@ -598,13 +449,13 @@ _file_t* _file_init(char *__pathname)
      
      pf->fg = fg;
      
-     pf->fd = open(pf->__pathname ,pf->fg ,md);
+     pf->fd = open(pf->name ,pf->fg ,md);
      if(pf->fd == -1){
          PRINT_ERROR();
          return -FILE_ERROR;
      }
  
-     if(_file_get_properties(pf->__pathname ,pf->fst) == -1)
+     if(_file_get_properties(pf->name ,pf->fst) == -1)
          return -1;
  
      if(_file_get_offset(pf) == -1)
@@ -642,9 +493,9 @@ _file_t* _file_init(char *__pathname)
  
      if(_file_set_offset(pfr ,ofs ,whence) == -1)
          return -FILE_ERROR;
-     printf("set %s file read offset: %ld bytes\n" ,pfr->__pathname ,pfr->ofs);
+     printf("set %s file read offset: %ld bytes\n" ,pfr->name ,pfr->ofs);
      
-     if(_file_get_properties(pfr->__pathname ,pfr->fst) == -1)
+     if(_file_get_properties(pfr->name ,pfr->fst) == -1)
          return -1;
      
      len = (len > (pfr->fst->st.st_size - pfr->ofs))?  (pfr->fst->st.st_size - pfr->ofs): len;
@@ -692,7 +543,7 @@ _file_t* _file_init(char *__pathname)
  
      if(_file_set_offset(pfw ,ofs ,whence) == -1)
          return -FILE_ERROR;
-     printf("set %s file write offset: %ld bytes\n" ,pfw->__pathname ,pfw->ofs);
+     printf("set %s file write offset: %ld bytes\n" ,pfw->name ,pfw->ofs);
  
      pfw->ret = write(pfw->fd ,data ,len);
      if(pfw->ret == -1){
@@ -736,10 +587,10 @@ _file_t* _file_init(char *__pathname)
  #ifdef __PRINT_FILEOFS
      if(_file_get_offset(pfr) == -1)
          return -FILE_ERROR;
-     printf("get %s file offset: %ld bytes\n" ,pfr->__pathname ,pfr->ofs);    
+     printf("get %s file offset: %ld bytes\n" ,pfr->name ,pfr->ofs);    
  #endif
  
-     if(_file_get_properties(pfr->__pathname ,pfr->fst) == -1)
+     if(_file_get_properties(pfr->name ,pfr->fst) == -1)
          return -1;
  
      len = (len > (pfr->fst->st.st_size - ofs))?  (pfr->fst->st.st_size - ofs): len;
@@ -789,7 +640,7 @@ _file_t* _file_init(char *__pathname)
  #ifdef __PRINT_FILEOFS
      if(_file_get_offset(pfw) == -1)
          return -FILE_ERROR;
-     printf("get %s file offset: %ld bytes\n" ,pfw->__pathname ,pfw->ofs);
+     printf("get %s file offset: %ld bytes\n" ,pfw->name ,pfw->ofs);
  #endif
  
      pfw->ret = pwrite(pfw->fd ,data ,len ,ofs);
@@ -942,7 +793,7 @@ _file_t* _file_init(char *__pathname)
          (cmd != FILE_F_TRUNCATE && cmd != FILE_TRUNCATE))
          return -FILE_ERROR;
  
-     if(_file_get_properties(pf->__pathname ,pf->fst)  == -1)
+     if(_file_get_properties(pf->name ,pf->fst)  == -1)
          return -1;
      
      size_t fs = pf->fst->st.st_size;
@@ -1011,7 +862,7 @@ _file_t* _file_init(char *__pathname)
      if(_file_set_offset(pfp ,ofs ,SEEK_SET) == -1)
          return -FILE_ERROR;
      
-     if(_file_get_properties(pfp->__pathname ,pfp->fst) == -1)
+     if(_file_get_properties(pfp->name ,pfp->fst) == -1)
          return -1;
      
      len = (len > (pfp->fst->st.st_size - pfp->ofs))?  (pfp->fst->st.st_size - pfp->ofs): len;
@@ -1025,7 +876,7 @@ _file_t* _file_init(char *__pathname)
          return -FILE_ERROR;
      }
  
-     printf("---------- print the contents of file: %s ----------\n", pfp->__pathname);
+     printf("---------- print the contents of file: %s ----------\n", pfp->name);
      for (int i = 0; i < pfp->ret; ++i) {
          putchar((char)((unsigned char *)pfp->data)[i]);
      }
@@ -1067,7 +918,7 @@ _file_t* _file_init(char *__pathname)
      if(_file_set_offset(pfp ,ofs ,SEEK_SET) == -1)
          return -FILE_ERROR;
      
-     if(_file_get_properties(pfp->__pathname ,pfp->fst)  == -1)
+     if(_file_get_properties(pfp->name ,pfp->fst)  == -1)
          return -1;
      
      len = (len > (pfp->fst->st.st_size - pfp->ofs))?  (pfp->fst->st.st_size - pfp->ofs): len;
@@ -1081,7 +932,7 @@ _file_t* _file_init(char *__pathname)
          return -FILE_ERROR;
      }
  
-     printf("---------- print the contents of file: %s ----------\n", pfp->__pathname);
+     printf("---------- print the contents of file: %s ----------\n", pfp->name);
      unsigned char *p = (unsigned char *)pfp->data;
      for (int i = 0; i < pfp->ret; ++i)
          printf("0x%02X ", p[i]);

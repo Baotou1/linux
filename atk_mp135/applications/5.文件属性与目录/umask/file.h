@@ -25,9 +25,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <sys/time.h>
 #include "time.h"
-#include <utime.h>
 #include <stdbool.h>
 #include <pwd.h> 
 
@@ -72,12 +70,6 @@ extern "C" {
  * @macro    __ACCESS
  * @brief    检查文件是否存在及可访问权限（Exist、Read、Write、Execute），并在一行内输出所有拥有的权限。
  */
-#define __ACCESS_MODE(__pathname ,__mode ,__ret)\
-                                                do{\
-                                                    if(access((__pathname), __mode) == -1){\
-                                                        __ret = -1;\
-                                                    }\
-                                                }while(0)
 #define __ACCESS(__pathname)\
                             do{\
                                 if ((__pathname) == NULL)                                     \
@@ -217,17 +209,7 @@ typedef struct {
 /* 相关函数声明 */
 int _file_get_properties(char *__pathname ,struct __file_stat *fst);
 int _file_chown(_file_t *__pathname , uid_t owner, gid_t group);
-char* _file_normalize_path(const char *__pathname);
-int _file_set_time(const char *__pathname ,const struct timespec __times[2] ,int __flag);
-int _file_link(const char *__from, const char *__to);
-int _file_symlink(const char *__from, const char *__to);
-int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t __len);
 void _file_close(_file_t *pf);
-#define FILE_CLOSE(pf)\
-                        do{\
-                            _file_close(pf);\
-                            pf = NULL;\
-                        }while(0)
 _file_t* _file_init(char *__pathname);
 int _file_open(_file_t *pf ,int fg ,mode_t md);
 int _file_read(_file_t *pfr ,off_t ofs ,int whence ,size_t len);

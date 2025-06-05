@@ -24,7 +24,7 @@
  * @author baotou
  * @date 2025-05-16
  *
- * @version 3.4.0 - 25/6/5
+ * @version 3.1.0 - 25/5/26
  *
  * @par 更新记录（Change Log）
  * - 2025-05-16：初始版本，实现基础的文件封装读写功能。 baotou
@@ -36,8 +36,6 @@
  * - 2025-06-01: 修改_file_get_size函数为_file_get_properties。 baotou
  * - 2025-06-02: 增加_file_get_type/get_rwx/get_time。 baotou
  * - 2025-06-02: 增加_file_chown。 baotou
- * - 2025-06-04: 增加_file_normalize_path和——file_set_time。 baotou
- * - 2025-06-05: 增加链接相关函数。 baotou
  */
 
 #include "file.h"
@@ -340,121 +338,6 @@ int _file_chown(_file_t *pf , uid_t owner, gid_t group)
 
     PRINT_FILE_INFO("chown" ,pf);
     return FILE_EOK;
-}
-
-/**
- * @name  _file_normalize_path
- * @brief 获取给定路径的规范化（绝对）路径。
- *
- * 该函数使用 realpath() 将传入的路径转换为绝对路径，并解析其中的符号链接、"." 和 ".." 等。
- * 注意：realpath() 会在堆上分配内存，返回的路径字符串需要由调用者手动 free() 释放，以防内存泄漏。
- *
- * @param __pathname 要规范化的路径（可以是相对路径或绝对路径）
- * @return char* 返回规范化后的绝对路径字符串，失败返回 NULL
- */
-char* _file_normalize_path(const char *__pathname)
-{
-    /* realpath会在堆上分配一个内存 */
-    return realpath(__pathname ,NULL);
-}
-
-/**
- * @name  _file_set_time
- * @brief 设置文件的访问时间和修改时间。
- * 
- * @param __pathname 文件路径（可以是相对路径）
- * @param __times    两个时间点的数组（访问时间和修改时间），可为 NULL 表示使用当前时间
- * @param __flag     标志，比如 0 或 AT_SYMLINK_NOFOLLOW
- *
- * @return 成功返回 0，失败返回 -1
- */
-int _file_set_time(const char *__pathname ,const struct timespec __times[2] ,int __flag)
-{
-    if(__pathname == NULL)
-        return -1;
-
-    /* 转化为绝对路径 */
-    char *__res = _file_normalize_path(__pathname);
-    if(__res == NULL){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    /* 当pathname为绝对路径，忽略第一个参数 */
-    if(utimensat(-1 ,__res ,__times ,__flag) == -1)
-    {
-        PRINT_ERROR();
-        free(__res);
-        return -1;
-    }
-    free(__res);
-    return 0;      
-}
-
-/**
- * @name  _file_link
- * @brief 创建一个新的硬链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（硬链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_link(const char *__from, const char *__to)
-{
-    if(__from == NULL)
-        return -1;
-
-    if(link(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_symlink(const char *__from, const char *__to)
-{
-    if(__from == NULL)
-        return -1;
-
-    if(symlink(__from ,__to) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
- * @name  _file_symlink
- * @brief 创建一个新的软链接，指向已有的文件。
- * 
- * @param __from 源文件路径（已有文件）
- * @param __to   新链接的路径（软链接名称）
- * 
- * @return 成功返回 0，失败返回 -1
- */
-int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t __len)
-{
-    if(__path == NULL || __buf == NULL || __len == 0)
-        return -1;
-
-    if(readlink(__path ,__buf ,__len - 1) == -1){
-        PRINT_ERROR();
-        return -1;
-    }
-
-    return 0;
 }
 
 /******************************************************************************************************************/ 

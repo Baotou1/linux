@@ -66,6 +66,8 @@ static const char* file_type_str(int mode) {
                                         "  -> inode: %ld \n" \
                                         "  -> type: %s \n" \
                                         "  -> rwx: 0%o \n" \
+                                        "  -> uid: %d \n" \
+                                        "  -> gid: %d \n" \
                                         "  -> flag: 0x%02x\n" \
                                         "  -> now offset: %ld bytes\n"\
                                         "  -> atim: %s\n" \
@@ -74,7 +76,8 @@ static const char* file_type_str(int mode) {
                                         "\n"\
                                         ,\
                                         (pf)->name, (pf)->ret, (pf)->fst->st.st_size, (pf)->fst->st.st_ino\
-                                        , file_type_str((pf)->fst->type) ,(pf)->fst->rwx ,(pf)->fg ,(pf)->ofs\
+                                        , file_type_str((pf)->fst->type) ,(pf)->fst->rwx ,(pf)->fst->st.st_uid\
+                                        ,(pf)->fst->st.st_gid ,(pf)->fg ,(pf)->ofs\
                                         ,(pf)->fst->atim ,(pf)->fst->mtim ,(pf)->fst->ctim\
                                     )
 
@@ -125,8 +128,8 @@ typedef struct {
 } _file_t;
 
 /* 相关函数声明 */
-void _file_get_id(struct stat *st);
 int _file_get_properties(char *name ,struct __file_stat *fst);
+int _file_chown(_file_t *pf , uid_t owner, gid_t group);
 void _file_close(_file_t *pf);
 _file_t* _file_init(char *name);
 int _file_open(_file_t *pf ,int fg ,mode_t md);

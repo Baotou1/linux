@@ -217,11 +217,6 @@ typedef struct {
 /* 相关函数声明 */
 int _file_get_properties(char *__pathname ,struct __file_stat *fst);
 int _file_chown(_file_t *__pathname , uid_t owner, gid_t group);
-char* _file_normalize_path(const char *__pathname);
-int _file_set_time(const char *__pathname ,const struct timespec __times[2] ,int __flag);
-int _file_link(const char *__from, const char *__to);
-int _file_symlink(const char *__from, const char *__to);
-int _file_readlink(const char *__restrict __path ,char *__restrict __buf ,size_t __len);
 void _file_close(_file_t *pf);
 #define FILE_CLOSE(pf)\
                         do{\
