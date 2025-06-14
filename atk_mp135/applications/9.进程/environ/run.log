@@ -1,0 +1,19 @@
+2025-06-10 14:11:00 proc1 init.
+2025-06-10 14:11:00 proc1 init: atexit registration success.
+2025-06-10 14:11:00 proc1 exit.
+2025-06-10 14:11:41 proc1 init.
+2025-06-10 14:11:41 proc1 init: atexit registration success.
+2025-06-10 14:11:41 proc1 exit.
+2025-06-10 14:12:07 proc1 init.
+2025-06-10 14:12:07 proc1 init: atexit registration success.
+2025-06-10 14:12:07 proc1 exit.
+2025-06-10 14:18:11 proc1 init.
+2025-06-10 14:18:11 proc1 init: atexit registration success.
+2025-06-10 14:18:11 proc1 exit.
+2025-06-10 14:23:43 proc1 init.
+2025-06-10 14:23:43 proc1 atexit registration success.
+2025-06-10 14:23:43 proc1 exit.
+2025-06-10 14:24:07 proc1 init.
+2025-06-10 14:24:07 proc1 atexit registration success.
+2025-06-10 14:24:07 proc1 print dump env.
+2025-06-10 14:24:07 proc1 exit.

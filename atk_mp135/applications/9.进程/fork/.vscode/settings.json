@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "string.h": "c",
+        "typeinfo": "c",
+        "file.h": "c",
+        "type_traits": "c",
+        "unistd.h": "c",
+        "dirent.h": "c",
+        "process.h": "c",
+        "error.h": "c",
+        "log.h": "c",
+        "wait.h": "c"
+    }
+}

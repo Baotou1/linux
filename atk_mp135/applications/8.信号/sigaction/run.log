@@ -1,0 +1,24 @@
+2025-06-11 15:05:42 proc1_child 0
+aaaaaa
+2025-06-11 15:08:52 proc1 runningaaaaaaa
+2025-06-11 15:08:52 proc1_child 0
+2025-06-11 15:45:10 proc1_child 0
+2025-06-11 15:45:10 proc1_child runningaaaaaaa
+2025-06-11 15:46:02 proc1 init.
+2025-06-11 15:46:02 proc1_child 0
+2025-06-11 15:46:02 proc1 runningaaaaaaa
+2025-06-11 15:47:57 proc1 init.
+2025-06-11 15:47:57 proc1_child 0
+2025-06-11 15:47:57 proc1 runningaaaaaaa
+2025-06-12 10:35:06 sign init successed.
+
+2025-06-12 10:35:48 sign init successed.
+
+2025-06-12 10:57:02 sign init successed.
+
+2025-06-12 15:02:36 sign error: init default.
+
+2025-06-12 15:04:09 sign init successed.
+
+2025-06-12 16:08:44 sign init successed.
+
