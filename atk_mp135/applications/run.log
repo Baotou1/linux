@@ -1,0 +1,3 @@
+2025-07-04 16:26:43 [INFO] [proc1][NULL]: init proc1 process ,pid=25757
+2025-07-04 16:26:43 [INFO] [proc1][main]: init main thread ,tid=140316046366528
+2025-07-04 16:26:43 [INFO] [proc1][main]: exit main thread ,tid=140316046366528

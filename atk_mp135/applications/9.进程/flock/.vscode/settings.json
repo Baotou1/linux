@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "typeinfo": "c",
+        "looplist.h": "c",
+        "file_looplist.h": "c",
+        "wait.h": "c"
+    }
+}

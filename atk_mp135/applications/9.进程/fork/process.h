@@ -80,41 +80,60 @@ pid_t __proc_vfork(void);
 void __proc_free(__proc_t **__proc);
 __proc_t* __proc_init(char *__name);
 /**
- * @macro  PROCESS_EXIT
- * @brief  释放进程结构体及其内部资源，并退出进程。
+ * @macro  PROCESS_EXIT_COMMON
+ * @brief  公共进程退出处理宏，用于释放资源并调用指定退出函数。
  *
- * @param[in] __proc    指向进程结构体指针的地址（二级指针），类型为 __proc_t **。
- * @param[in] __ret     进程退出码，将作为 exit() 的参数。
+ * @param[in] __proc     指向进程结构体指针的地址（二级指针），类型为 __proc_t **。
+ * @param[in] __ret      退出码，作为退出函数的参数。
+ * @param[in] __exit_fn  退出函数，可为 exit 或 _exit。
  *
  * @details
- *  此宏用于在进程退出前释放进程结构体资源。其行为包括：
- *  1. 判断 __proc 和 *__proc 是否为非空；
- *  2. 若结构体中的 __sig 字段非空，调用 _sig_free() 释放信号资源；
- *  3. 调用 _proc_free() 释放进程结构体及其成员，并将指针置为 NULL；
- *  4. 最后调用 exit(__ret) 退出当前进程。
+ *  此宏完成通用的资源释放流程，适用于作为其它具体退出宏的基础：
+ *    1. 判断 __proc 和 *__proc 是否非空；
+ *    2. 若存在信号字段 __sig，调用 _sig_free() 释放信号资源；
+ *    3. 调用 __proc_free() 释放进程结构体；
+ *    4. 最后通过 __exit_fn(__ret) 退出进程（exit 或 _exit）。
  *
- *  适用于发生严重错误或退出条件满足时的资源清理与退出流程。
- *
- * @note
- *  需保证 __proc 为合法的二级指针（即变量形如 &proc），否则可能导致空指针解引用。
- *
- * @example
- *  __proc_t *proc = _proc_create("my_proc");
- *  if (proc == NULL) {
- *      PROCESS_EXIT(&proc, -1);
- *  }
+ * @note 
+ *  本宏不直接使用，请使用 PROCESS_EXIT_FLUSH 或 PROCESS_EXIT_FAST。
  */
-#define PROCESS_EXIT(__proc ,__ret)\
-                                    do{\
-                                        if((__proc) != NULL && (*__proc) != NULL)\
-                                        {\
-                                            _log_write((*__proc)->__name, "process exit(%d)", __ret);\
-                                            if((*__proc)->__sig != NULL)\
-                                                _sig_free(&(*__proc)->__sig);\
-                                            __proc_free(__proc);\
-                                        }\
-                                        exit(__ret);\
-                                    }while(0)
+#define PROCESS_EXIT_COMMON(__proc ,__ret ,__exit_fn)\
+                                                    do{\
+                                                        if((__proc) != NULL && (*__proc) != NULL)\
+                                                        {\
+                                                            _log_write((*__proc)->__name, "process exit(%d)", __ret);\
+                                                            if((*__proc)->__sig != NULL)\
+                                                                _sig_free(&(*__proc)->__sig);\
+                                                            __proc_free(__proc);\
+                                                        }\
+                                                        __exit_fn(__ret);\
+                                                    }while(0)
+/**
+ * @macro  PROCESS_EXIT_FLUSH
+ * @brief  安全退出当前进程并释放资源，会执行缓冲区刷新等清理操作。
+ *
+ * @param[in] __proc     指向进程结构体指针的地址（二级指针）。
+ * @param[in] __ret      进程退出码。
+ *
+ * @details
+ *  本宏调用 exit(__ret)，适用于主进程或希望触发标准 C 库清理（如刷新 stdout/stderr、
+ *  执行 atexit 注册函数等）场景。调用前会释放进程结构体与信号资源。
+ */
+#define PROCESS_EXIT_FLUSH(__proc, __ret)\
+                                        PROCESS_EXIT_COMMON(__proc, __ret, exit)
+/**
+ * @macro  PROCESS_EXIT_FAST
+ * @brief  快速退出当前进程并释放资源，不进行缓冲刷新或清理函数调用。
+ *
+ * @param[in] __proc     指向进程结构体指针的地址（二级指针）。
+ * @param[in] __ret      进程退出码。
+ *
+ * @details
+ *  本宏调用 _exit(__ret)，适用于子进程或 fork 后的分支退出，
+ *  避免多次刷新或执行 atexit 函数造成副作用。调用前会释放进程结构体与信号资源。
+ */
+#define PROCESS_EXIT_FAST(__proc, __ret)\
+                                        PROCESS_EXIT_COMMON(__proc, __ret, _exit)
 /**
  * @name    PROCESS_DUMP_ENV
  * @brief   打印当前进程的所有环境变量并记录日志

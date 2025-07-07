@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "type_traits": "c",
+        "log.h": "c",
+        "signal.h": "c",
+        "init.h": "c",
+        "applicate.h": "c",
+        "typeinfo": "c",
+        "semaphore.h": "c",
+        "pthread.h": "c",
+        "thread.h": "c"
+    }
+}

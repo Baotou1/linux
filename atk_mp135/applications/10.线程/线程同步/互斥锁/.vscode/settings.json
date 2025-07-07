@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "typeinfo": "c",
+        "looplist.h": "c",
+        "file_looplist.h": "c",
+        "wait.h": "c",
+        "errno.h": "c",
+        "thread.h": "c",
+        "log.h": "c",
+        "applicate.h": "c",
+        "thread_list.h": "c",
+        "process.h": "c",
+        "pthread.h": "c",
+        "file.h": "c"
+    }
+}
